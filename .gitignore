@@ -1,0 +1,48 @@
+# Secrets — NEVER commit
+.env
+.env.local
+*.key
+*.pem
+
+# State / cache files (local only)
+.*.json
+.*.cache
+*_cache.json
+.position_meta.json
+.signal_*.json
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.venv/
+venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+logs/
+
+# Test output
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Trading-specific local state
+trade_log.csv
+.evidence_ledger.json
+.account_peak.json
+.wakelock_state.json

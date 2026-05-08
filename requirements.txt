@@ -1,0 +1,16 @@
+# Core
+ccxt>=4.0.0           # broker abstraction (Coinbase, Kraken, Binance, etc.)
+python-dotenv>=1.0.0  # .env loading
+pandas>=2.0.0
+numpy>=1.24.0
+requests>=2.31.0
+
+# Math / stats (matches stocks system)
+scipy>=1.11.0
+statsmodels>=0.14.0   # ADF cointegration test, etc.
+
+# Visualization (optional, dev only)
+matplotlib>=3.7.0
+
+# Testing
+pytest>=7.4.0
