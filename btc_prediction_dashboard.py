@@ -560,15 +560,22 @@ def get_bottom_signals(force_refresh: int = 0):
 # (state cache stays 4h for heavy signals; price comes from this faster fetch)
 @st.cache_data(ttl=60, show_spinner=False)
 def get_live_btc_ticker() -> dict:
-    """Full BTC ticker (last / percentage / low / high) — ONE cached Binance
-    fetch shared by the whole page; 60s TTL so reruns don't re-hit the network."""
-    try:
-        import ccxt
-        t = ccxt.binance().fetch_ticker("BTC/USDT")
-        return {"last": float(t.get("last") or 0), "percentage": float(t.get("percentage") or 0),
-                "low": float(t.get("low") or 0), "high": float(t.get("high") or 0)}
-    except Exception:
-        return {"last": 0.0, "percentage": 0.0, "low": 0.0, "high": 0.0}
+    """Full BTC ticker (last / percentage / low / high), 60s TTL shared page-wide.
+    Tries several venues so it works from ANY region: Binance is geo-blocked on
+    US cloud hosts (Streamlit Cloud), so US-accessible venues (Coinbase, Kraken)
+    are tried first; Binance is the fallback (and works fine from NZ)."""
+    import ccxt
+    for ex_id, sym in (("kraken", "BTC/USD"), ("coinbase", "BTC/USD"),
+                       ("binance", "BTC/USDT"), ("bitstamp", "BTC/USD")):
+        try:
+            t = getattr(ccxt, ex_id)({"timeout": 7000, "enableRateLimit": True}).fetch_ticker(sym)
+            last = float(t.get("last") or 0)
+            if last > 0:
+                return {"last": last, "percentage": float(t.get("percentage") or 0),
+                        "low": float(t.get("low") or 0), "high": float(t.get("high") or 0)}
+        except Exception:
+            continue
+    return {"last": 0.0, "percentage": 0.0, "low": 0.0, "high": 0.0}
 
 
 def get_live_btc_price() -> float:
