@@ -80,7 +80,21 @@ def _cm(metric: str, days: int = 1460) -> Optional[pd.Series]:
             return df.iloc[:, 0]
     except Exception:
         pass
-    # CoinMetrics paywalled/empty -> free bitcoin-data.com fallback
+    # CoinMetrics paywalls CapRealUSD (403). But realized cap is EXACTLY
+    # market cap / MVRV, and BOTH of those are free on CoinMetrics — so derive
+    # it: no external call, no rate limit. (Same identity btc_cost_basis uses.)
+    if metric == "CapRealUSD":
+        try:
+            from core.btc_pro_signals import _cm as _coinmetrics
+            mc = _coinmetrics("CapMrktCurUSD", days=days)
+            mvrv = _coinmetrics("CapMVRVCur", days=days)
+            if mc is not None and not mc.empty and mvrv is not None and not mvrv.empty:
+                rc = (mc.iloc[:, 0] / mvrv.iloc[:, 0]).dropna()
+                if not rc.empty:
+                    return rc
+        except Exception:
+            pass
+    # last resort: free bitcoin-data.com (realized-price etc., or if derive failed)
     return _bitcoin_data(metric, days)
 
 
@@ -118,12 +132,15 @@ def hodl_waves_decomposed() -> dict:
     # Map velocity to "moved in last X days" supply
     # Higher velocity = more young supply
     # Very rough: each timescale captures fraction that moved
-    moved_7d_pct = max(0, min(15, v_7d / 4))
-    moved_30d_pct = max(0, min(25, v_30d / 4)) - moved_7d_pct
-    moved_90d_pct = max(0, min(20, v_90d / 5)) - moved_30d_pct - moved_7d_pct
-    moved_1y_pct = max(0, min(30, v_365d / 3)) - moved_90d_pct - moved_30d_pct - moved_7d_pct
-    moved_1y_pct = max(0, moved_1y_pct)
-    older_pct = max(0, 100 - moved_7d_pct - moved_30d_pct - moved_90d_pct - moved_1y_pct)
+    # Movement = |Δ realized cap| over each window: coins moving shift realized
+    # cap up (sold in profit) OR down (sold at loss), so magnitude — not signed
+    # change — is the activity proxy. (Signed change wrongly zeroed STH in flat
+    # / declining regimes, collapsing the read to a misleading 100% LTH.)
+    moved_7d_pct = max(0.0, min(15.0, abs(v_7d) / 4))
+    moved_30d_pct = max(0.0, min(25.0, abs(v_30d) / 4) - moved_7d_pct)
+    moved_90d_pct = max(0.0, min(20.0, abs(v_90d) / 5) - moved_30d_pct - moved_7d_pct)
+    moved_1y_pct = max(0.0, min(30.0, abs(v_365d) / 3) - moved_90d_pct - moved_30d_pct - moved_7d_pct)
+    older_pct = max(0.0, 100 - moved_7d_pct - moved_30d_pct - moved_90d_pct - moved_1y_pct)
 
     return {
         "confidence":          "MEDIUM",
