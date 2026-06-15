@@ -131,8 +131,8 @@ def btc_dominance_gauge() -> dict:
 
     try:
         d = fetch_dominance()
-        dom = d.get("btc_dominance_pct", 0)
-        eth = d.get("eth_dominance_pct", 0)
+        dom = d.get("btc_dominance_pct") or 0      # coinpaprika fallback has no ETH%
+        eth = d.get("eth_dominance_pct") or 0      # -> None; coerce so f"{eth:.1f}" is safe
         reg = regime_classification(dom)
         regime_name = reg.get("regime", "?")
     except Exception:
