@@ -81,6 +81,7 @@ bin/
 *.exe
 *.dll
 
-# Keep the small precompute caches the dashboard reads
+# Keep the small precompute caches + daily brief the dashboard reads
 !.panel_cache/
 !.panel_cache/**
+!.simpleton_daily_brief.json
