@@ -3974,9 +3974,9 @@ with tab_overview:
                     cards.append(("Cap Models", "unavailable", "data missing", C.get("muted")))
 
                 # HODL Waves proxy
-                if not hodl.get("error"):
-                    lth_pct = hodl.get("lth_pct_est", 0)
-                    label = hodl.get("label", "?")
+                if hodl and not hodl.get("error"):
+                    lth_pct = round(hodl.get("lth_supply_pct", hodl.get("lth_pct_est", 0)) or 0)
+                    label = hodl.get("label") or ("HODLer-dominated" if lth_pct >= 70 else "distributing")
                     color = C.get("bull") if lth_pct > 60 else C.get("muted")
                     cards.append((
                         "HODL Waves (est)",
