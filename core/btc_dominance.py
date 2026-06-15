@@ -52,26 +52,44 @@ def _write_cache(data: dict) -> None:
 
 
 def fetch_dominance() -> Optional[dict]:
-    """Fetch current BTC dominance from CoinGecko."""
+    """Fetch current BTC dominance. CoinGecko primary, coinpaprika fallback.
+    (CoinGecko's free /global rate-limits and SSL-fails on some networks; the
+    coinpaprika global endpoint is more lenient and needs no key.)"""
     cached = _read_cache()
     if cached:
         return cached
+
+    btc_dominance = eth_dominance = total_mcap = None
+    _ua = {"Accept": "application/json", "User-Agent": "Mozilla/5.0"}
+
+    # 1) CoinGecko
     try:
-        url = "https://api.coingecko.com/api/v3/global"
-        req = urllib.request.Request(url, headers={"Accept": "application/json"})
+        req = urllib.request.Request("https://api.coingecko.com/api/v3/global", headers=_ua)
         with urllib.request.urlopen(req, timeout=10) as r:
-            payload = json.loads(r.read())
+            g = json.loads(r.read()).get("data", {})
+        btc_dominance = g.get("market_cap_percentage", {}).get("btc")
+        eth_dominance = g.get("market_cap_percentage", {}).get("eth")
+        total_mcap = g.get("total_market_cap", {}).get("usd")
     except Exception:
-        return None
-    g = payload.get("data", {})
-    btc_dominance = g.get("market_cap_percentage", {}).get("btc")
-    eth_dominance = g.get("market_cap_percentage", {}).get("eth")
+        pass
+
+    # 2) Coinpaprika fallback
+    if btc_dominance is None:
+        try:
+            req = urllib.request.Request("https://api.coinpaprika.com/v1/global", headers=_ua)
+            with urllib.request.urlopen(req, timeout=10) as r:
+                d = json.loads(r.read())
+            btc_dominance = d.get("bitcoin_dominance_percentage")
+            total_mcap = d.get("market_cap_usd")
+        except Exception:
+            pass
+
     if btc_dominance is None:
         return None
     data = {
         "btc_dominance_pct": float(btc_dominance),
         "eth_dominance_pct": float(eth_dominance) if eth_dominance else None,
-        "total_mcap_usd": float(g.get("total_market_cap", {}).get("usd", 0)),
+        "total_mcap_usd": float(total_mcap or 0),
         "fetched_at": datetime.now(timezone.utc).isoformat(),
     }
     _write_cache(data)

@@ -53,10 +53,34 @@ def _btc_price_now() -> float:
 
 
 def _etf_flows_history() -> Optional[pd.DataFrame]:
-    """Pull ETF flow history. Tries multiple sources."""
+    """Daily US spot BTC ETF net flows ($M) as a 1-col DataFrame.
+    Source: Farside Investors public table (same source as
+    btc_premium_free.etf_flows, which only returns a summary). The old import
+    (`_farside_etf_flows`) never existed, so this panel always read empty."""
     try:
-        from core.btc_premium_free import _farside_etf_flows
-        return _farside_etf_flows()
+        import io
+        from core.btc_premium_free import _http_get
+        body = _http_get("https://farside.co.uk/btc/", ttl=21600)  # 6h cache
+        if not body:
+            return None
+        tables = pd.read_html(io.StringIO(body))
+        if not tables:
+            return None
+        df = max(tables, key=len)
+        total_col = next((c for c in df.columns if "total" in str(c).lower()), None)
+        if total_col is None:
+            return None
+        flows = pd.to_numeric(
+            df[total_col].astype(str).str.replace(r"[^\d\.\-]", "", regex=True),
+            errors="coerce",
+        ).dropna()
+        # Farside appends summary rows (cumulative all-time ~$50B, plus avg/max/
+        # min). Real daily net flow is at most a few $B, so drop implausible
+        # magnitudes — otherwise the cumulative row poisons the windowed sums.
+        flows = flows[flows.abs() <= 3000]
+        if flows.empty:
+            return None
+        return pd.DataFrame({"flow_M": flows.values})
     except Exception:
         return None
 
