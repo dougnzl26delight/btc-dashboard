@@ -117,6 +117,33 @@ def ticker(pair: str) -> dict:
     return _EX.fetch_ticker(pair)
 
 
+# US-resilient BTC ticker. Binance geo-blocks US IPs (Streamlit Cloud, GitHub
+# Actions), so modules must NOT call ccxt.binance().fetch_ticker('BTC/USDT')
+# directly — use this instead. Tries US-accessible venues first, Binance last.
+_BTC_VENUES = (("kraken", "BTC/USD"), ("coinbase", "BTC/USD"),
+               ("binance", "BTC/USDT"), ("bitstamp", "BTC/USD"))
+
+
+def btc_ticker() -> dict:
+    """Full BTC ticker dict from the first venue that answers (region-agnostic)."""
+    for ex_id, sym in _BTC_VENUES:
+        try:
+            t = getattr(ccxt, ex_id)({"timeout": 7000, "enableRateLimit": True}).fetch_ticker(sym)
+            if float(t.get("last") or 0) > 0:
+                return t
+        except Exception:
+            continue
+    return {}
+
+
+def btc_spot() -> float:
+    """Last BTC price as a float, or 0.0 if every venue failed."""
+    try:
+        return float(btc_ticker().get("last") or 0.0)
+    except Exception:
+        return 0.0
+
+
 def funding_rate(pair: str) -> dict:
     """Latest funding rate for a perp contract.
 

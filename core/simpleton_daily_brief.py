@@ -23,16 +23,16 @@ OUT = REPO / ".simpleton_daily_brief.json"         # the rendered brief the tab 
 
 def _live_price() -> float:
     try:
-        import ccxt
-        return float(ccxt.binance().fetch_ticker("BTC/USDT").get("last") or 0)
+        from core import data
+        return data.btc_spot()
     except Exception:
         return 0.0
 
 
 def _btc_24h() -> float:
     try:
-        import ccxt
-        return float(ccxt.binance().fetch_ticker("BTC/USDT").get("percentage") or 0)
+        from core import data
+        return float(data.btc_ticker().get("percentage") or 0)
     except Exception:
         return 0.0
 

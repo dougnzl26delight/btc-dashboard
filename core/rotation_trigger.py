@@ -99,9 +99,8 @@ def _qqq_recent_closes(n: int = 5):
 
 def _btc_price() -> float:
     try:
-        import ccxt
-        t = ccxt.binance().fetch_ticker("BTC/USDT")
-        return float(t.get("last") or 0)
+        from core import data
+        return data.btc_spot()
     except Exception:
         return 0.0
 

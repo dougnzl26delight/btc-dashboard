@@ -253,10 +253,10 @@ def cohort_realized_pl() -> dict:
     """
     try:
         from core.btc_cost_basis import realized_price, sth_cost_basis
-        import ccxt
+        from core import data
 
         # Current price
-        price = float(ccxt.binance().fetch_ticker("BTC/USDT").get("last") or 0)
+        price = data.btc_spot()
 
         rp = realized_price() or {}
         sth = sth_cost_basis() or {}

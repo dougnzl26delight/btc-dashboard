@@ -81,9 +81,9 @@ def coinbase_premium() -> Optional[dict]:
         cb_ticker = cb.fetch_ticker("BTC/USD")
         cb_price = float(cb_ticker.get("last") or cb_ticker.get("close") or 0)
 
-        # Binance BTC-USDT spot
-        bn = ccxt.binance({"enableRateLimit": True, "timeout": 8000})
-        bn_ticker = bn.fetch_ticker("BTC/USDT")
+        # BTC-USD spot (region-resilient: Kraken/Coinbase/Binance/Bitstamp)
+        from core import data
+        bn_ticker = data.btc_ticker()  # same shape as ccxt fetch_ticker
         bn_price = float(bn_ticker.get("last") or bn_ticker.get("close") or 0)
 
         if cb_price <= 0 or bn_price <= 0: return None
@@ -114,8 +114,11 @@ def spot_perp_basis() -> Optional[dict]:
     """
     try:
         import ccxt
+        from core import data
+        # Spot leg: region-resilient. Perp leg: Binance derivative (no US-venue
+        # equivalent in data.btc_ticker), so keep direct ccxt for the perp only.
         bn = ccxt.binance({"enableRateLimit": True, "timeout": 8000})
-        spot = float(bn.fetch_ticker("BTC/USDT").get("last") or 0)
+        spot = float(data.btc_spot() or 0)
         perp = float(bn.fetch_ticker("BTC/USDT:USDT").get("last") or 0)
         if spot <= 0 or perp <= 0: return None
         basis_bps = (perp / spot - 1) * 10000   # bps

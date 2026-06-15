@@ -78,29 +78,19 @@ def _fetch_mvrv_history(days: int = 1500) -> pd.DataFrame:
 
 
 def _fetch_btc_prices(days: int = 1500) -> pd.DataFrame:
-    """Fetch BTC daily prices from ccxt Binance."""
+    """Fetch BTC daily prices (region-resilient: Binance, yfinance fallback)."""
     try:
-        import ccxt
-        ex = ccxt.binance({"enableRateLimit": True, "timeout": 15000})
+        from core import data
+        # ohlcv_extended paginates back days_back days and falls back to
+        # yfinance when Binance is geo-blocked (US cloud hosts).
+        df = data.ohlcv_extended("BTC/USDT", days_back=days + 100, timeframe="1d")
     except Exception:
         return pd.DataFrame()
 
-    all_rows = []
-    end_ts = int(time.time() * 1000)
-    target = days + 100  # buffer
-    while len(all_rows) < target:
-        try:
-            ohlcv = ex.fetch_ohlcv("BTC/USDT", timeframe="1d", limit=1000,
-                                    since=end_ts - 1000 * 86400 * 1000)
-        except Exception:
-            break
-        if not ohlcv: break
-        all_rows = ohlcv + all_rows
-        end_ts = ohlcv[0][0] - 86400 * 1000
-        if len(ohlcv) < 1000: break
-
-    df = pd.DataFrame(all_rows, columns=["ts", "open", "high", "low", "close", "volume"])
-    df["date"] = pd.to_datetime(df["ts"], unit="ms").dt.date
+    if df is None or df.empty:
+        return pd.DataFrame()
+    df = df.reset_index()  # ts index -> column; cols: ts,open,high,low,close,volume
+    df["date"] = pd.to_datetime(df["ts"]).dt.date
     return df.drop_duplicates("date").sort_values("date").reset_index(drop=True)
 
 

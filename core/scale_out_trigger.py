@@ -59,8 +59,7 @@ def _btc_vs_365d_high() -> dict:
         high_365 = float(closes.max())
         px = float(closes.iloc[-1])
         try:
-            import ccxt
-            live = float(ccxt.binance().fetch_ticker("BTC/USDT").get("last") or 0)
+            live = data.btc_spot()
             if live > 0: px = live
         except Exception:
             pass

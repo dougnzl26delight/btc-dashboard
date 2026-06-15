@@ -59,9 +59,8 @@ def _save_state(s: dict) -> None:
 
 def _live_btc_price() -> float:
     try:
-        import ccxt
-        t = ccxt.binance().fetch_ticker("BTC/USDT")
-        return float(t.get("last") or 0)
+        from core import data
+        return data.btc_spot()  # region-resilient (Kraken/Coinbase/Binance/Bitstamp)
     except Exception:
         return 0.0
 

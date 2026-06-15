@@ -22,18 +22,17 @@ STATE_FILE = REPO_ROOT / ".btc_change_log_state.json"
 
 def _live_btc_price() -> float:
     try:
-        import ccxt
-        t = ccxt.binance().fetch_ticker("BTC/USDT")
-        return float(t.get("last") or 0)
+        from core import data
+        return data.btc_spot()  # region-resilient (Kraken/Coinbase/Binance/Bitstamp)
     except Exception:
         return 0.0
 
 
 def _btc_24h_change() -> float:
     try:
-        import ccxt
-        t = ccxt.binance().fetch_ticker("BTC/USDT")
-        return float(t.get("percentage", 0))
+        from core import data
+        t = data.btc_ticker()  # region-resilient; same shape as ccxt fetch_ticker
+        return float(t.get("percentage") or 0)
     except Exception:
         return 0.0
 

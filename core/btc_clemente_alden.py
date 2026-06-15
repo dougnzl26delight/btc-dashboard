@@ -721,14 +721,15 @@ def cb_premium_streak() -> Optional[dict]:
     """
     try:
         import ccxt
+        from core import data
         # Sample CB vs Binance daily over last 30 days via ticker history
         # ccxt doesn't expose historical premium directly so we approximate
         # via recent klines comparison
         cb = ccxt.coinbase()
-        bn = ccxt.binance()
         # Get 30d daily kline for both
         cb_ohlcv = cb.fetch_ohlcv("BTC/USD", timeframe="1d", limit=30)
-        bn_ohlcv = bn.fetch_ohlcv("BTC/USDT", timeframe="1d", limit=30)
+        # region-resilient (yfinance fallback); back to [ts,o,h,l,c,v] bar rows
+        bn_ohlcv = data.ohlcv("BTC/USDT", "1d", 30).reset_index().values.tolist()
         if not cb_ohlcv or not bn_ohlcv: return None
 
         # Premium per day = (cb_close - bn_close) / bn_close

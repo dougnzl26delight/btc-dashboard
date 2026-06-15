@@ -274,10 +274,10 @@ def coinbase_premium_gap() -> Optional[dict]:
     """
     try:
         import ccxt
+        from core import data
         cb = ccxt.coinbase()
-        bn = ccxt.binance()
         cb_t = cb.fetch_ticker("BTC/USD")
-        bn_t = bn.fetch_ticker("BTC/USDT")
+        bn_t = data.btc_ticker()  # region-resilient; same shape as ccxt fetch_ticker
         cb_px = cb_t.get("last")
         bn_px = bn_t.get("last")
         if not cb_px or not bn_px: return None

@@ -23,8 +23,8 @@ def _btc_price_and_ath():
     except Exception:
         pass
     try:
-        import ccxt
-        live = float(ccxt.binance().fetch_ticker("BTC/USDT").get("last") or 0)
+        from core import data
+        live = data.btc_spot()  # region-resilient (Kraken/Coinbase/Binance/Bitstamp)
         if live > 0:
             px = live
             ath = max(ath, live)
