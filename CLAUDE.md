@@ -15,7 +15,7 @@ honest evidence collection, cap-controlled risk.
 | Dimension                | Stocks system (existing)         | Crypto system (this one)                      |
 |--------------------------|----------------------------------|-----------------------------------------------|
 | Market hours             | US 09:30-16:00 ET, weekdays only | 24/7 — no off-window                          |
-| Broker                   | Alpaca paper                     | TBD: Coinbase, Kraken, or Binance.US          |
+| Broker                   | Alpaca paper                     | Binance NZ (decided 2026-05-09; FSP1003864)   |
 | Universe                 | ~3000 US equities                | BTC/ETH/SOL + maybe top 20 alts; not 3000     |
 | Daily volatility         | ~1-2% on liquid names            | ~3-8% on BTC, 5-15% on alts                   |
 | Stop tolerance           | MAX_LOSS = 8%                    | MAX_LOSS = 15-20% (vol-adjusted)              |
@@ -99,17 +99,21 @@ CryptoTrading/
 
 ## What to do FIRST (when actually starting work)
 
-1. **Pick a broker.** Coinbase Advanced API has the cleanest paper-like
-   sandbox. Kraken has better data. Binance.US is more limited but has
-   spot + funding rates.
-2. **Set up `.env`** with API keys and base URLs. Don't commit.
-3. **Build `core/broker.py`** — broker-agnostic trading interface.
-4. **Build `core/data.py`** — price feed + first signal source (probably
-   ETF flow since it's the simplest to start).
-5. **Run paper for 30 days BEFORE adding strategies.** Just BTC buy-and-hold
-   on the chosen venue, prove the wiring works end-to-end.
-6. **Then** add the first signal-driven strategy (probably TSMOM or
-   funding basis), and only then iterate.
+1. ~~**Pick a broker.**~~ Done 2026-05-09 — Binance NZ. Coinbase live is
+   broken for NZ (no NZD on/off-ramp). Kraken's spot test env is qualified-
+   clients-only. Binance NZ is FSP-registered, has a full public testnet,
+   and the largest universe.
+2. **Set up `.env`** with API keys. Copy `.env.example` to `.env`, fill in
+   `BINANCE_API_KEY`/`BINANCE_API_SECRET` (testnet keys are sufficient for
+   now — get them at https://testnet.binance.vision).
+3. ~~**Build `core/broker.py`**~~ Done 2026-05-09 — `paper`/`live` modes,
+   testnet support, generic quote currency in `PaperState`.
+4. **Run paper for 30 days BEFORE adding strategies.** Just BTC buy-and-hold
+   on Binance, prove the wiring works end-to-end.
+5. **Build `core/data.py`** — first signal source (ETF flow, simplest to
+   start).
+6. **Then** add the first signal-driven strategy (TSMOM or funding basis),
+   and only then iterate.
 
 ## Notes on tooling
 
@@ -132,4 +136,11 @@ CryptoTrading/
 
 ## Status
 
-**Day 0** — directory created, git initialised, no code yet.
+**Day 0+** as of 2026-05-09 — broker adapter shipped (`core/broker.py`),
+tested live against Binance mainnet ticks (paper-bought USDT 1k of BTC,
+state persisted). Next: 30-day paper buy-and-hold to prove wiring before
+adding any signal-driven strategy.
+
+**Broker:** Binance NZ. Quote currency: USDT. Live testnet routing via
+`BINANCE_TESTNET=true` env var. Paper mode is local fill simulator against
+live mainnet ticks (no keys required).

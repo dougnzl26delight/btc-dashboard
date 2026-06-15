@@ -43,6 +43,44 @@ htmlcov/
 
 # Trading-specific local state
 trade_log.csv
+paper_trades.csv
 .evidence_ledger.json
 .account_peak.json
 .wakelock_state.json
+.paper_state.json
+
+# ── Cloud-deploy hygiene (added 2026-06-15) ────────────────────────────
+# Large runtime databases (494 MB sqlite etc.) — NEVER deploy, regenerated locally
+*.sqlite
+*.sqlite3
+*.db
+*.parquet
+
+# Cache directories (regenerated from live APIs; keep .panel_cache only)
+.cache/
+.http_cache/
+.deribit_cache/
+.onchain_cache/
+.cache_*/
+.backtest_cache/
+
+# Runtime output dirs
+risk_snapshots/
+monte_carlo_results/
+daily_reports_crypto/
+.file_snapshots/
+.config_backups/
+.expectancy_reports/
+
+# Bulk data dumps / event + signal logs
+*.jsonl
+*.csv
+
+# Binaries (cloudflared, etc. — not needed in the cloud app)
+bin/
+*.exe
+*.dll
+
+# Keep the small precompute caches the dashboard reads
+!.panel_cache/
+!.panel_cache/**

@@ -1,0 +1,114 @@
+==============================================================================
+BTC WEEKLY REPORT — Tuesday, 02 June 2026 13:39 NZT
+==============================================================================
+
+  BTC: $73,407
+  Regime: LATE_CYCLE_BEAR
+
+  RECOMMENDED ACTION:  MILD BULL — hold/accumulate dips
+     Lean long, buy weakness.
+
+THIS WEEK'S OUTLOOK
+------------------------------------------------------------------------------
+  Short-term  (7-30d):  NEUTRAL        score +0.14  confidence MEDIUM
+  Medium-term (1-6m):   BULL           score +0.22  confidence MEDIUM
+  Long-term (6m-2y):    BULL           score +0.27  confidence MEDIUM
+
+PRICE TARGETS (signal-derived)
+------------------------------------------------------------------------------
+  30 days     P5 $ 60,629  P25 $ 68,149  median $ 73,910  P75 $ 80,159  P95 $ 90,100
+  90 days     P5 $ 53,842  P25 $ 65,928  median $ 75,879  P75 $ 87,331  P95 $106,934
+  180 days    P5 $ 48,995  P25 $ 65,243  median $ 79,591  P75 $ 97,096  P95 $129,294
+
+PRICE TARGETS (halving-clock pattern projection)
+------------------------------------------------------------------------------
+  Cycle 5 bottom (Oct 2026, ~4 months):
+    Low      $   45,000  (-38.7%)
+    Mid      $   55,000  (-25.1%)
+    High     $   65,000  (-11.5%)
+  Cycle 6 peak (Oct 2029, ~3.5 years):
+    Conserv  $  211,920  (+188.7%)  [1.7x cycle 5 peak]
+    Mid      $  236,852  (+222.7%)  [1.9x cycle 5 peak]
+    Aggress  $  274,250  (+273.6%)  [2.2x cycle 5 peak]
+
+3-LENS ENSEMBLE
+------------------------------------------------------------------------------
+  Consensus: MIXED / UNCERTAIN
+  technical  -0.12  BEAR           (20 signals)
+  onchain    +0.29  BULL           (16 signals)
+  macro      +0.09  NEUTRAL        (16 signals)
+
+TOP 3 BULLISH SIGNALS
+------------------------------------------------------------------------------
+  cme_basis                [flows         ] +1.00  positive basis = institutional contango (bull); backwardatio
+  stablecoin_supply        [flows         ] +1.00  USDT+USDC combined market cap; >$200B = dry powder; <$140B =
+  bb_position              [technical     ] +1.00  
+
+TOP 3 BEARISH SIGNALS
+------------------------------------------------------------------------------
+  macd_daily               [technical     ] -1.00  
+  vs_sma200                [technical     ] -1.00  
+  cross_asset_ratios       [macro         ] -0.90  BTC outperforming other assets (rising ratios) = bull setup
+
+KEY LEVELS
+------------------------------------------------------------------------------
+  RESISTANCE (upside targets):
+    $   75,966  (+ 3.5%)  EMA21
+    $   79,427  (+ 8.2%)  SMA200 (Mayer 1.0)
+    $   82,850  (+12.9%)  30-day high
+    $   90,000  (+22.6%)  Hayes gamma trigger
+    $   90,000  (+22.6%)  $90k round
+    $   92,100  (+25.5%)  Overhead supply low
+
+  SUPPORT (downside levels):
+    $   72,512  (- 1.2%)  30-day low
+    $   67,513  (- 8.0%)  SMA200 × 0.85
+    $   65,000  (-11.5%)  90-day low
+    $   60,000  (-18.3%)  Hayes downside trigger
+    $   60,000  (-18.3%)  $60k round number
+    $   55,599  (-24.3%)  Mayer 0.7 (deep value)
+
+CATALYSTS THIS WEEK
+------------------------------------------------------------------------------
+  this week       NFP (jobs report)               high — labor market signal
+  ongoing         Halving cycle day 773           historical bottoms ~day 900-1000
+
+HALVING CLOCK (most reliable BTC predictor)
+------------------------------------------------------------------------------
+  Day 773 of 1461 (53% through halving cycle 4)
+  Halving 4 (Apr 20, 2024) -> Halving 5 (Apr 20, 2028)
+  Pattern phase: LATE_BEAR - Late bear, approaching pattern bottom
+  Directional bias: -0.40
+
+  PATTERN PROJECTIONS:
+    Pattern bottom date: 2026-10-07 (halving + 900d, std dev +/- 12d)
+    Days to pattern bottom: 127 (ahead)
+    Cycle 5 bottom target (mid): $55,000 (-25.1% from current)
+    Cycle 6 peak date:   2029-10-07 (halving 5 + 535d, std dev +/- 8d)
+    Cycle 6 peak target range: $211,920 - $236,852 - $274,250 (conservative / mid / aggressive)
+    Cycle 6 peak mid case: +222.7% from current price
+
+  RELIABILITY: Cycle 5 peak predicted to ONE day using this formula.
+               Std dev across 3 cycles: peaks +/-8d, bottoms +/-12d. Highest-conviction BTC signal.
+
+CYCLE CONTEXT
+------------------------------------------------------------------------------
+  Days post-halving:        773
+  Days post cycle-5 peak:   239
+  Days to projected bottom: 127  (~4.2 months)
+  Days to cycle-6 peak:     1223  (~3.4 years)
+
+CYCLE BOTTOM SIGNAL STATUS
+------------------------------------------------------------------------------
+  hashrate_ribbon_cross     + +0.30  RIBBON_CHOP
+  sth_mvrv_cross            + +0.20  STH_CHOP
+  cycle_day_analog         unavailable
+  wyckoff_phase             = +0.00  NEUTRAL
+  cross_asset_divergence   unavailable
+  AVG bottom signal:       +0.17  (normal)
+
+==============================================================================
+Generated: 2026-06-02 01:39 UTC
+Run: python btc_predict.py --force  (refresh signals)
+Dashboard: http://localhost:8510
+==============================================================================
