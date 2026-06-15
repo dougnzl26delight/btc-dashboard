@@ -29,14 +29,59 @@ import requests
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 
+# CoinMetrics' community API paywalls realized cap (CapRealUSD) etc. with a 403.
+# bitcoin-data.com (BGeometrics) serves the SAME series free + current, so we map
+# the ones we can source there and fall back transparently — every downstream
+# proxy (HODL waves, cap models, ...) keeps working with no paid key.
+_BD_FALLBACK = {
+    "CapRealUSD":   ("realized-cap", "realizedCap"),
+    "PriceRealUSD": ("realized-price", "realizedPrice"),
+}
+
+
+_BD_CACHE: dict = {}  # metric -> (epoch, full Series); shared across callers/run
+
+
+def _bitcoin_data(metric: str, days: int) -> Optional[pd.Series]:
+    spec = _BD_FALLBACK.get(metric)
+    if not spec:
+        return None
+    import time
+    hit = _BD_CACHE.get(metric)
+    # <1h in-process cache so the ~5 callers in one precompute run hit the
+    # network ONCE (bitcoin-data.com rate-limits with 429 otherwise).
+    if hit and (time.time() - hit[0]) < 3600:
+        ser = hit[1]
+        return ser.tail(days) if days else ser
+    path, field = spec
+    try:
+        import urllib.request, json
+        req = urllib.request.Request(f"https://bitcoin-data.com/v1/{path}",
+                                     headers={"User-Agent": "Mozilla/5.0"})
+        raw = json.loads(urllib.request.urlopen(req, timeout=20).read())
+        if not isinstance(raw, list) or not raw:
+            raise ValueError("empty")
+        ser = pd.Series({pd.Timestamp(r["d"]): float(r[field])
+                         for r in raw if r.get(field) is not None}).sort_index()
+        _BD_CACHE[metric] = (time.time(), ser)
+        return ser.tail(days) if days else ser
+    except Exception:
+        if hit:                    # rate-limited / transient -> serve stale
+            ser = hit[1]
+            return ser.tail(days) if days else ser
+        return None
+
+
 def _cm(metric: str, days: int = 1460) -> Optional[pd.Series]:
     try:
         from core.btc_pro_signals import _cm as _coinmetrics
         df = _coinmetrics(metric, days=days)
-        if df is None or df.empty: return None
-        return df.iloc[:, 0]
+        if df is not None and not df.empty:
+            return df.iloc[:, 0]
     except Exception:
-        return None
+        pass
+    # CoinMetrics paywalled/empty -> free bitcoin-data.com fallback
+    return _bitcoin_data(metric, days)
 
 
 def _live_btc_price() -> float:
