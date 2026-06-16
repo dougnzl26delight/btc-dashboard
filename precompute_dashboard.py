@@ -134,6 +134,12 @@ def _panels() -> dict:
         return all_swift_charts()
     _safe("swift_charts", _swift_charts)
 
+    # Cycle amplitude-compression proof table — per-cycle PEAK readings (Charts tab)
+    def _cycle_peak_table():
+        from core.cycle_peak_table import cycle_peak_table
+        return cycle_peak_table()
+    _safe("cycle_peak_table", _cycle_peak_table)
+
     # CD1: Cycle Dials — Swift indicators as at-a-glance gauges (Charts tab)
     def _cycle_dials():
         from core.btc_cycle_dials import all_cycle_dials
