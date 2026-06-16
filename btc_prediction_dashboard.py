@@ -6830,14 +6830,29 @@ with tab_charts:
         if _sc:
             import plotly.graph_objects as go
             _CFG = {"displayModeBar": False, "scrollZoom": False, "doubleClick": False, "displaylogo": False}
+            # One-line explainer under each chart, focused on WHERE THE CYCLE BOTTOM
+            # (accumulation) zone is — the rotation trigger this dashboard watches for.
+            _EXPLAIN = {
+                "rainbow": "**Rainbow** — log-regression price bands. The cool **blue/green bands at the bottom = the historical undervalued / accumulation zone**; warm red-orange at the top = historically overheated.",
+                "pi_cycle_top": "**Pi Cycle Top** — 111-day MA divided by (2 × 350-day MA). A cross **up through 1.0 has marked every cycle _top_ within days**; sitting well below 1.0 means we're far from a top.",
+                "pi_cycle_bottom": "**Pi Cycle Bottom** — a short MA vs a scaled long MA. **Dips toward / under the line have historically marked major _bottoms_ within weeks.**",
+                "golden_ratio": "**Golden Ratio** — 350-day MA times Fibonacci multiples. **Price down near the base 350-day MA line = the historical accumulation zone**; the higher x1.6 to x3 bands have marked tops.",
+                "two_year_ma": "**2-Year MA Multiplier** — **price under the green 2-year MA has historically been a deep-value bottom-buy zone**; up at the red band (2-year MA x5) = historically a top.",
+                "mvrv_bands": "**MVRV** — market value divided by realized value (average holder cost basis). **Below 1.0 = the average holder is underwater = capitulation/bottom historically**; above ~3.5 = euphoria/top.",
+                "puell_bands": "**Puell Multiple** — daily miner revenue vs its 1-year average. **Low / green (below ~0.5) = miner capitulation, a historical bottom**; high / red (above ~4) = top.",
+                "hodl_waves": "**HODL Waves** — supply split by coin age. **Bottoms historically show the long-term-holder bands swelling** (old coins quietly accumulating) while short-term-holder supply thins out.",
+            }
             def _draw(name):
                 fig = _sc.get(name)
                 if not fig:
                     return
                 try:
                     st.plotly_chart(_swift_fig(fig), width='stretch', config=_CFG, key=f"cyclelive_{name}")
-                except Exception as e:
-                    st.caption(f"- {name.replace('_', ' ')} chart unavailable ({type(e).__name__}: {str(e)[:90]})")
+                    _ex = _EXPLAIN.get(name)
+                    if _ex:
+                        st.caption(_ex)
+                except Exception:
+                    st.caption(f"- {name.replace('_', ' ')} chart unavailable")
             _draw("rainbow")
             _r1 = st.columns(2)
             with _r1[0]: _draw("pi_cycle_top")
