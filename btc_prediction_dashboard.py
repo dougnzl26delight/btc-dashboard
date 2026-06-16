@@ -34,9 +34,19 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded",
 )
-# Auto-refresh disabled per user request — refresh browser manually for new data.
-# Caches refresh on their own TTL (4h for state, 60s for live price), so a
-# manual browser refresh will pick up fresh data within those windows.
+# === Auto-refresh ===
+# Repaint the whole dashboard every few minutes so it stays current on an
+# always-open screen WITHOUT a manual browser refresh: each rerun re-fetches the
+# live price (60s cache) and repaints all panels, and the periodic activity also
+# keeps the Streamlit Cloud app from going to sleep. Guarded so a missing
+# component (e.g. a local run before `pip install streamlit-autorefresh`)
+# degrades gracefully to no-autorefresh.
+_AUTOREFRESH_MS = 300_000  # 5 minutes; lower this for a more live-feeling price ticker
+try:
+    from streamlit_autorefresh import st_autorefresh
+    st_autorefresh(interval=_AUTOREFRESH_MS, key="dashboard_autorefresh")
+except Exception:
+    pass  # component unavailable — fall back to manual browser refresh
 
 
 # ─────────────────────────────────────────────────────────────────

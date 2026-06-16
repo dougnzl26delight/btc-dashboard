@@ -13,10 +13,11 @@ statsmodels>=0.14.0   # ADF cointegration test, etc.
 matplotlib>=3.7.0
 
 # ── Dashboard + cloud deploy (Streamlit Community Cloud) ──────────────
-streamlit>=1.40.0     # the dashboard app itself
-plotly>=5.20.0        # every chart + the pickled figures in .panel_cache
-yfinance>=0.2.40      # equities / cross-asset / macro proxies in precompute
-lxml>=5.0.0           # html parsing used by yfinance / pandas.read_html
+streamlit>=1.40.0           # the dashboard app itself
+streamlit-autorefresh>=1.0.1 # auto-repaint the page every few min (always-on screen)
+plotly>=5.20.0              # every chart + the pickled figures in .panel_cache
+yfinance>=0.2.40            # equities / cross-asset / macro proxies in precompute
+lxml>=5.0.0                 # html parsing used by yfinance / pandas.read_html
 
 # Testing
 pytest>=7.4.0
