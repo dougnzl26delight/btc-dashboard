@@ -77,6 +77,20 @@ def _realized_cap(days: int = 1500) -> Optional[pd.Series]:
         return None
 
 
+def _safe_fig_dict(fig) -> dict:
+    """Plotly figure -> pure-Python dict with NO numpy arrays.
+
+    fig.to_dict() keeps numpy ndarrays in the trace data; pickling those makes
+    the cached panel fail to load/render whenever the numpy (or plotly) version
+    on the render host (Streamlit Cloud) differs from the build host (the GitHub
+    Action) — numpy 1.x<->2.x pickle buffers are incompatible. fig.to_json()
+    uses plotly's own encoder to emit plain JSON lists, so json.loads() yields a
+    version-proof dict that pickles and renders identically everywhere.
+    """
+    import json
+    return json.loads(fig.to_json())
+
+
 def _base_layout(title: str, ylog: bool = False) -> dict:
     return {
         "title": {"text": title, "font": {"size": 13, "color": "#ccc"}},
@@ -172,7 +186,7 @@ def rainbow_chart() -> Optional[dict]:
     layout["height"] = 360
     layout["margin"] = {"l": 50, "r": 92, "t": 40, "b": 30}
     fig.update_layout(**layout)
-    return fig.to_dict()
+    return _safe_fig_dict(fig)
 
 
 # ============================================================
@@ -217,7 +231,7 @@ def pi_cycle_top_chart() -> Optional[dict]:
     )
 
     fig.update_layout(**_base_layout("Pi Cycle Top — 111d MA / (350d MA × 2)"))
-    return fig.to_dict()
+    return _safe_fig_dict(fig)
 
 
 # ============================================================
@@ -254,7 +268,7 @@ def pi_cycle_bottom_chart() -> Optional[dict]:
     )
 
     fig.update_layout(**_base_layout("Pi Cycle Bottom — 150d MA / (471d MA × 0.745)"))
-    return fig.to_dict()
+    return _safe_fig_dict(fig)
 
 
 # ============================================================
@@ -306,7 +320,7 @@ def golden_ratio_chart() -> Optional[dict]:
     layout = _base_layout("Golden Ratio Multiplier — price / 350d MA with Fibonacci bands", ylog=True)
     layout["height"] = 320
     fig.update_layout(**layout)
-    return fig.to_dict()
+    return _safe_fig_dict(fig)
 
 
 # ============================================================
@@ -352,7 +366,7 @@ def two_year_ma_chart() -> Optional[dict]:
     )
 
     fig.update_layout(**_base_layout("2-Year MA Multiplier"))
-    return fig.to_dict()
+    return _safe_fig_dict(fig)
 
 
 # ============================================================
@@ -393,7 +407,7 @@ def mvrv_bands_chart() -> Optional[dict]:
     )
 
     fig.update_layout(**_base_layout("MVRV ratio with cycle bands"))
-    return fig.to_dict()
+    return _safe_fig_dict(fig)
 
 
 # ============================================================
@@ -437,7 +451,7 @@ def puell_bands_chart() -> Optional[dict]:
 
     layout = _base_layout("Puell Multiple with bands", ylog=True)
     fig.update_layout(**layout)
-    return fig.to_dict()
+    return _safe_fig_dict(fig)
 
 
 # ============================================================
@@ -490,7 +504,7 @@ def hodl_waves_heatmap() -> Optional[dict]:
     )
 
     fig.update_layout(**_base_layout("HODL proxy — Realized Cap 30d velocity (annualized)"))
-    return fig.to_dict()
+    return _safe_fig_dict(fig)
 
 
 # ============================================================

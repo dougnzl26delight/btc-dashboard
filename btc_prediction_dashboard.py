@@ -6841,31 +6841,25 @@ with tab_charts:
         if _sc:
             import plotly.graph_objects as go
             _CFG = {"displayModeBar": False, "scrollZoom": False, "doubleClick": False, "displaylogo": False}
-            if _sc.get("rainbow"):
-                st.plotly_chart(go.Figure(_sc["rainbow"]), width='stretch', config=_CFG)
+            def _draw(key):
+                fig = _sc.get(key)
+                if not fig:
+                    return
+                try:
+                    st.plotly_chart(go.Figure(fig), width='stretch', config=_CFG)
+                except Exception:
+                    st.caption(f"- {key.replace('_', ' ')} chart unavailable")
+            _draw("rainbow")
             _r1 = st.columns(2)
-            with _r1[0]:
-                if _sc.get("pi_cycle_top"):
-                    st.plotly_chart(go.Figure(_sc["pi_cycle_top"]), width='stretch', config=_CFG)
-            with _r1[1]:
-                if _sc.get("pi_cycle_bottom"):
-                    st.plotly_chart(go.Figure(_sc["pi_cycle_bottom"]), width='stretch', config=_CFG)
+            with _r1[0]: _draw("pi_cycle_top")
+            with _r1[1]: _draw("pi_cycle_bottom")
             _r2 = st.columns(2)
-            with _r2[0]:
-                if _sc.get("golden_ratio"):
-                    st.plotly_chart(go.Figure(_sc["golden_ratio"]), width='stretch', config=_CFG)
-            with _r2[1]:
-                if _sc.get("two_year_ma"):
-                    st.plotly_chart(go.Figure(_sc["two_year_ma"]), width='stretch', config=_CFG)
+            with _r2[0]: _draw("golden_ratio")
+            with _r2[1]: _draw("two_year_ma")
             _r3 = st.columns(2)
-            with _r3[0]:
-                if _sc.get("mvrv_bands"):
-                    st.plotly_chart(go.Figure(_sc["mvrv_bands"]), width='stretch', config=_CFG)
-            with _r3[1]:
-                if _sc.get("puell_bands"):
-                    st.plotly_chart(go.Figure(_sc["puell_bands"]), width='stretch', config=_CFG)
-            if _sc.get("hodl_waves"):
-                st.plotly_chart(go.Figure(_sc["hodl_waves"]), width='stretch', config=_CFG)
+            with _r3[0]: _draw("mvrv_bands")
+            with _r3[1]: _draw("puell_bands")
+            _draw("hodl_waves")
         else:
             st.info("Cycle charts are still warming up \u2014 check back in a few minutes.")
     except Exception as _e:
