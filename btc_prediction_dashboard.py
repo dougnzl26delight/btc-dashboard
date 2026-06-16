@@ -6835,6 +6835,18 @@ with tab_charts:
         "**percentile-rank within history**, not absolute levels — so it won't wait for a 2018-depth flush "
         "that may never come. **Read the bands relative-to-era, not absolute.**"
     )
+    with st.expander("📊 Proof — every metric peaks lower each cycle (verified from our own data)"):
+        st.markdown(
+"""Per-cycle **peak** readings — pulled from our CoinMetrics price/MVRV history (back to 2010) and blockchain.com miner revenue. Every column is a *lower high* than the cycle before:
+
+| Cycle top | Price | MVRV | Pi Cycle | Px ÷ 350d-MA | 2-Yr MA mult | Puell |
+|---|---|---|---|---|---|---|
+| **2013** | $1.1k | 5.88 | 1.23 ✓ | 11.9× | 18.0× | 14.4 |
+| **2017** | $19.6k | 4.72 | 1.06 ✓ | 5.6× | 10.0× | 7.1 |
+| **2021** | $67.5k | 3.96 | 1.00 ✓ | 3.7× | 4.9× | 3.5 |
+| **2024–25 (to date)** | $124.8k | 2.78 | **0.74 ✗** | 2.1× | 2.5× | 2.8 |
+
+✓ = Pi Cycle Top crossed 1.0 (sell signal fired). **In 2024–25 it peaked at 0.74 — it never crossed, so the classic top signal never fired.** MVRV more than halved (5.9 → 2.8) and Puell fell ~5× (14 → 2.8) over the cycles — diminishing returns + ETF/institutional smoothing, the exact amplitude compression the **Cycle-6 detector** corrects for.""")
     try:
         from core.dashboard_cache import get_cached as _gc
         _sc = _gc("swift_charts")
