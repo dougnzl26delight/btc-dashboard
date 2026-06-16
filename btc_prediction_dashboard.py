@@ -6824,6 +6824,17 @@ with tab_charts:
 
     # === Self-hosted cycle charts (render reliably; the official sites block embedding) ===
     st.markdown("#### 🌈 Cycle charts (live)")
+    st.info(
+        "📉 **Why these bands look 'muted' vs 2021 / 2017** — each cycle reaches less far into the "
+        "extremes (2025 barely tagged the Rainbow's yellow; 2017 hit deep red). Two structural causes: "
+        "**diminishing returns** (BTC's multi-trillion cap makes the old price *multiples* unreachable) "
+        "and **ETF / institutional smoothing** (steady programmatic flows replace retail blow-offs). "
+        "It's **symmetric — bottoms are shallower too** (2022 bottomed near MVRV 0.75, not a 2018-style "
+        "washout). The verdict already compensates: the **Cycle-6 detector** (Overview tab) auto-scales "
+        "the bottom-buy thresholds ~0.70–0.85× in a muted era, and the scorecards read these metrics by "
+        "**percentile-rank within history**, not absolute levels — so it won't wait for a 2018-depth flush "
+        "that may never come. **Read the bands relative-to-era, not absolute.**"
+    )
     try:
         from core.dashboard_cache import get_cached as _gc
         _sc = _gc("swift_charts")
