@@ -2751,6 +2751,25 @@ with tab_overview:
                             f"{c.get('text', '')[:200]}</div>",
                             unsafe_allow_html=True,
                         )
+                # 📺 Latest guru YouTube uploads — free, IP-unblocked feed that
+                # replaces the dead Nitter/Twitter scrape (works on the cloud too).
+                import html as _h
+                _gy = _gc_gn("guru_youtube") or {}
+                _gylist = _gy.get("gurus", []) or []
+                if _gylist:
+                    st.markdown("**📺 Latest guru videos (YouTube — live):**")
+                    for _g in _gylist:
+                        for _v in (_g.get("videos", []) or [])[:2]:
+                            st.markdown(
+                                f"<div style='font-size:11px; color:#ccc; margin-bottom:4px; "
+                                f"padding-left:8px; border-left:2px solid #ef4444;'>"
+                                f"<b>{_h.escape(str(_g.get('name','?')))}</b> "
+                                f"<span style='color:#888;'>({_h.escape(str(_v.get('date','')))})</span> "
+                                f"<a href='{_h.escape(str(_v.get('url','')))}' target='_blank' "
+                                f"style='color:#7fb3ff; text-decoration:none;'>"
+                                f"{_h.escape(str(_v.get('title',''))[:90])}</a></div>",
+                                unsafe_allow_html=True,
+                            )
             except Exception as _gie:
                 st.caption(f"guru track records: {_gie}")
 

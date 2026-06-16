@@ -200,6 +200,13 @@ def _panels() -> dict:
         return all_guru_intelligence()
     _safe("guru_intelligence", _guru_intelligence)
 
+    # GI2: Guru YouTube feed — free, IP-unblocked replacement for the dead Nitter
+    # scrape (works from the US cloud, unlike Nitter). Cowen + Checkonchain.
+    def _guru_youtube():
+        from core.guru_youtube import guru_youtube_feed
+        return guru_youtube_feed()
+    _safe("guru_youtube", _guru_youtube)
+
     # SO1: BTC top scale-out trigger — phased exit ladder for the next bull
     def _scale_out_trigger():
         from core.scale_out_trigger import evaluate_scale_out_trigger
