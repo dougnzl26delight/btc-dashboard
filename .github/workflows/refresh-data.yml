@@ -1,12 +1,16 @@
 name: Refresh dashboard data
 
-# Runs precompute on GitHub's servers every 3h and commits the refreshed
+# Runs precompute on GitHub's servers hourly and commits the refreshed
 # panel caches, so the Streamlit Cloud dashboard stays current with ZERO
 # dependence on Dave's laptop or wifi. Manual run available too.
+# Hourly (not 3h) because GitHub free-tier SKIPS scheduled runs on
+# low-activity repos — more attempts = fewer stale gaps. Public repo,
+# so Action minutes are unlimited/free; each run's own commit also keeps
+# the repo "active" which itself reduces schedule-skipping.
 
 on:
   schedule:
-    - cron: '17 */3 * * *'   # every 3 hours (UTC), 17 min past
+    - cron: '17 * * * *'     # hourly (UTC), 17 min past (avoids the congested :00 slot)
   workflow_dispatch: {}       # adds a "Run workflow" button
 
 permissions:
