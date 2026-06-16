@@ -3609,49 +3609,27 @@ with tab_overview:
                 _sc = _gc("swift_charts")
                 if _sc:
                     import plotly.graph_objects as go
+                    _CFG2 = {"displayModeBar": False, "scrollZoom": False, "doubleClick": False, "displaylogo": False}
+                    def _d(k):
+                        f = _sc.get(k)
+                        if f:
+                            # unique key per chart: this suite shares figures with the
+                            # "Cycle charts (live)" block, so without distinct keys Streamlit
+                            # raises StreamlitDuplicateElementId and BOTH copies go blank.
+                            st.plotly_chart(_swift_fig(f), width='stretch', config=_CFG2, key=f"swsuite_{k}")
                     # Rainbow chart full width (most iconic)
-                    if _sc.get("rainbow"):
-                        st.plotly_chart(_swift_fig(_sc["rainbow"]),
-                                          width='stretch',
-                                          config={"displayModeBar": False, "scrollZoom": False, "doubleClick": False, "displaylogo": False})
+                    _d("rainbow")
                     # 2 columns for the multiplier history charts
                     _r1 = st.columns(2)
-                    if _sc.get("pi_cycle_top"):
-                        with _r1[0]:
-                            st.plotly_chart(_swift_fig(_sc["pi_cycle_top"]),
-                                              width='stretch',
-                                              config={"displayModeBar": False, "scrollZoom": False, "doubleClick": False, "displaylogo": False})
-                    if _sc.get("pi_cycle_bottom"):
-                        with _r1[1]:
-                            st.plotly_chart(_swift_fig(_sc["pi_cycle_bottom"]),
-                                              width='stretch',
-                                              config={"displayModeBar": False, "scrollZoom": False, "doubleClick": False, "displaylogo": False})
+                    with _r1[0]: _d("pi_cycle_top")
+                    with _r1[1]: _d("pi_cycle_bottom")
                     _r2 = st.columns(2)
-                    if _sc.get("golden_ratio"):
-                        with _r2[0]:
-                            st.plotly_chart(_swift_fig(_sc["golden_ratio"]),
-                                              width='stretch',
-                                              config={"displayModeBar": False, "scrollZoom": False, "doubleClick": False, "displaylogo": False})
-                    if _sc.get("two_year_ma"):
-                        with _r2[1]:
-                            st.plotly_chart(_swift_fig(_sc["two_year_ma"]),
-                                              width='stretch',
-                                              config={"displayModeBar": False, "scrollZoom": False, "doubleClick": False, "displaylogo": False})
+                    with _r2[0]: _d("golden_ratio")
+                    with _r2[1]: _d("two_year_ma")
                     _r3 = st.columns(2)
-                    if _sc.get("mvrv_bands"):
-                        with _r3[0]:
-                            st.plotly_chart(_swift_fig(_sc["mvrv_bands"]),
-                                              width='stretch',
-                                              config={"displayModeBar": False, "scrollZoom": False, "doubleClick": False, "displaylogo": False})
-                    if _sc.get("puell_bands"):
-                        with _r3[1]:
-                            st.plotly_chart(_swift_fig(_sc["puell_bands"]),
-                                              width='stretch',
-                                              config={"displayModeBar": False, "scrollZoom": False, "doubleClick": False, "displaylogo": False})
-                    if _sc.get("hodl_waves"):
-                        st.plotly_chart(_swift_fig(_sc["hodl_waves"]),
-                                          width='stretch',
-                                          config={"displayModeBar": False, "scrollZoom": False, "doubleClick": False, "displaylogo": False})
+                    with _r3[0]: _d("mvrv_bands")
+                    with _r3[1]: _d("puell_bands")
+                    _d("hodl_waves")
                     st.caption(
                         "8 LookIntoBitcoin-style charts with full historical context. Rainbow chart = "
                         "log regression with 8 color bands. Pi Cycle Top/Bottom show ratio history vs cross "
@@ -6852,14 +6830,14 @@ with tab_charts:
         if _sc:
             import plotly.graph_objects as go
             _CFG = {"displayModeBar": False, "scrollZoom": False, "doubleClick": False, "displaylogo": False}
-            def _draw(key):
-                fig = _sc.get(key)
+            def _draw(name):
+                fig = _sc.get(name)
                 if not fig:
                     return
                 try:
-                    st.plotly_chart(_swift_fig(fig), width='stretch', config=_CFG)
+                    st.plotly_chart(_swift_fig(fig), width='stretch', config=_CFG, key=f"cyclelive_{name}")
                 except Exception as e:
-                    st.caption(f"- {key.replace('_', ' ')} chart unavailable ({type(e).__name__}: {str(e)[:90]})")
+                    st.caption(f"- {name.replace('_', ' ')} chart unavailable ({type(e).__name__}: {str(e)[:90]})")
             _draw("rainbow")
             _r1 = st.columns(2)
             with _r1[0]: _draw("pi_cycle_top")
