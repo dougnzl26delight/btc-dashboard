@@ -1,14 +1,13 @@
 {
-  "generated_local": "2026-06-17T21:28:45.272542",
-  "date": "2026-06-17",
-  "date_friendly": "Wed 17 Jun 2026",
-  "summary": "2 things changed in the last 24 hours.",
+  "generated_local": "2026-06-18T16:32:48.643140",
+  "date": "2026-06-18",
+  "date_friendly": "Thu 18 Jun 2026",
+  "summary": "1 thing changed in the last 24 hours.",
   "lines": [
-    "\u20bf Bitcoin **fell 2.1%** in the last 24 hours, to **$64,211**.",
-    "\ud83d\udfe2 1 bottom signal fired \u2014 the bottom checklist is now **4/16** (was 3).",
-    "\ud83d\udcc9 Stocks look **calmer**: 1/10 'toppy' signs now (was 2)."
+    "\u20bf Bitcoin **fell 0.9%** in the last 24 hours, to **$63,885**.",
+    "\ud83d\udcc9 Stocks look **more stretched**: 2/10 'toppy' signs now (was 1)."
   ],
-  "btc_24h_pct": -2.131852655708921,
+  "btc_24h_pct": -0.8798796003227207,
   "first": false,
   "plan": "WAITING"
 }
