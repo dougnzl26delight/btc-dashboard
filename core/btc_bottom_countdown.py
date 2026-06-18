@@ -304,6 +304,39 @@ def run() -> None:
         except Exception as e:
             print(f"  [FAIL] Could not send trigger alert: {e}")
 
+    # --- 200-WEEK MA BREAK (Swift's deep-buy line; Olson's key bear level) ---
+    # Fires ONCE the day BTC actually closes below the 200wMA (pct < 0), not the
+    # soft "within 5%" scorecard criterion. Auto re-arms if price clearly recovers
+    # (> +5% above) so a later break alerts again.
+    try:
+        from core.btc_native_bottom_scorecard import below_200_week_ma
+        _wma = below_200_week_ma()
+        _pct = _wma.get("value")
+        if _pct is not None:
+            if _pct > 5 and persisted.get("sent_200wma_break"):
+                persisted.pop("sent_200wma_break", None)   # re-arm after recovery
+            if _pct < 0 and not persisted.get("sent_200wma_break"):
+                subject = "BTC closed BELOW the 200-week MA - deep-buy line broken"
+                body = (
+                    "Bitcoin has closed below its 200-week moving average.\n\n"
+                    f"{_wma.get('status','')}\n\n"
+                    "This is Phillip Swift's signature deep-value signal and the key "
+                    "bear-market level Jesse Olson watches: every prior cycle bottom "
+                    "(2015, 2018, 2020, 2022) printed at or below the 200-week MA. The "
+                    "rotation buy-zone (~$52-57k) sits just below this line.\n\n"
+                    f"BTC: ${state_data['btc_price']:,.0f}   "
+                    f"Bottom scorecard: {sc['n_met']}/{sc['n_total']}\n"
+                )
+                from ops.alerts import alert
+                alert(body, level="critical", subject=subject, email=True)
+                persisted["sent_200wma_break"] = today_str
+                sent_anything = True
+                print("  [SENT] 200-week MA break alert")
+            else:
+                print(f"  200wMA: {_pct:+.1f}% vs line (no break alert)")
+    except Exception as e:
+        print(f"  [FAIL] 200wMA break check: {e}")
+
     # Persist state
     persisted["sent_milestones"] = sorted(sent_milestones)
     persisted["sent_confirmations"] = sorted(sent_confirmations)
