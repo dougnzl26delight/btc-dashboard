@@ -13,12 +13,23 @@ import json
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 REPO = Path(__file__).resolve().parent.parent
 STATE = REPO / ".simpleton_brief_state.json"      # snapshot history (one per day)
 OUT = REPO / ".simpleton_daily_brief.json"         # the rendered brief the tab reads
+
+NZ = ZoneInfo("Pacific/Auckland")
+
+
+def _now_nz() -> datetime:
+    """Now in NZ time. The hourly GitHub Action runs on a UTC server, so a naive
+    datetime.now() there yields the UTC date — which reads a day stale all NZ
+    morning. Anchoring to Pacific/Auckland makes the brief date correct whether it
+    runs on the laptop or the CI runner."""
+    return datetime.now(NZ)
 
 
 def _live_price() -> float:
@@ -60,7 +71,7 @@ def _snapshot() -> dict:
     cheap = ("cheap" if "ACCUMULATION" in hl
              else "expensive" if "DISTRIBUTION" in hl else "around fair value")
     return {
-        "date": datetime.now().date().isoformat(),          # local (NZ) date
+        "date": _now_nz().date().isoformat(),               # NZ date (correct on the UTC CI runner too)
         "price": _live_price(),
         "cheap": cheap,
         "cycle_buy": cd.get("n_buy"),
@@ -103,7 +114,7 @@ def _prev_from_change_log() -> dict | None:
         if not f.exists():
             return None
         snaps = json.loads(f.read_text(encoding="utf-8")).get("snapshots", [])
-        tdate = datetime.now().date().isoformat()
+        tdate = _now_nz().date().isoformat()
         for s in reversed(snaps):
             if s.get("date") and s.get("date") != tdate and s.get("price"):
                 return {
@@ -206,9 +217,9 @@ def build_daily_brief() -> dict:
 
 def _write(today, lines, summary, btc24, first) -> dict:
     out = {
-        "generated_local": datetime.now().isoformat(),
+        "generated_local": _now_nz().isoformat(),
         "date": today["date"],
-        "date_friendly": datetime.now().strftime("%a %d %b %Y"),
+        "date_friendly": _now_nz().strftime("%a %d %b %Y"),
         "summary": summary,
         "lines": lines,
         "btc_24h_pct": btc24,
