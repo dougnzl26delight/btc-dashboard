@@ -9,7 +9,9 @@ Zones (from W14C task — overhead supply mapping):
   $92,000  - $95,000    Overhead supply (pre-peak consolidation)
   $76,000  - $78,000    STH cost basis line
   $60,000  - $63,000    Major support (cycle midpoint)
+  $57,500  - $58,500    Olson W-target $58k (his bearish-W 'target 4 of 5')
   $53,000  - $55,000    LTH realized price (true floor)
+  $52,000  - $52,900    Olson avg-buy $52.5k (~$52,557 on-chain avg / W-target)
   $42,000  - $45,000    Cycle 4 ATH retest
   $30,000  - $32,000    Cycle 4 analog bottom band
 
@@ -33,14 +35,18 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 STATE_FILE = REPO_ROOT / ".btc_pattern_target_state.json"
 
 
-# Zones: (label, low, high, kind)
+# Zones: (label, low, high, kind). Kept in DESCENDING price order — _zone_label's
+# between-zones logic relies on it. 'olson_target' = a level Jesse Olson has
+# publicly named (watch level, NOT a standalone buy — see confluence check below).
 ZONES = [
     ("Cycle 5 peak",           117_000, 124_700, "resistance_top"),
     ("Pre-peak consolidation",  108_000, 112_000, "resistance"),
     ("Overhead supply",          92_000,  95_000, "resistance"),
     ("STH cost basis",           76_000,  78_000, "balance"),
     ("Major support",            60_000,  63_000, "support"),
+    ("Olson W-target $58k",      57_500,  58_500, "olson_target"),
     ("LTH realized (floor)",     53_000,  55_000, "support"),
+    ("Olson avg-buy $52.5k",     52_000,  52_900, "olson_target"),
     ("Cycle 4 ATH retest",       42_000,  45_000, "support_strong"),
     ("Cycle 4 analog bottom",    30_000,  32_000, "support_strong"),
 ]
@@ -63,6 +69,23 @@ def _live_btc_price() -> float:
         return data.btc_spot()  # region-resilient (Kraken/Coinbase/Binance/Bitstamp)
     except Exception:
         return 0.0
+
+
+def _bottom_confluence() -> str:
+    """One-line read of YOUR cached BTC-native bottom scorecard, for alert confluence.
+
+    Reads the precomputed cache (fresh every 15 min) so an Olson/guru price level
+    is never reported as a buy on its own — it's gated against your own signals.
+    """
+    try:
+        from core.dashboard_cache import get_cached
+        sc = get_cached("btc_native_bottom_scorecard")
+        if not isinstance(sc, dict) or sc.get("n_met") is None:
+            return ""
+        return (f"Your bottom scorecard: {sc.get('n_met')}/{sc.get('n_total')} signals met "
+                f"({sc.get('verdict_level', '?')}). {sc.get('verdict', '')}").strip()
+    except Exception:
+        return ""
 
 
 def _zone_for_price(price: float) -> dict:
@@ -140,7 +163,10 @@ ZONE MAP
 INTERPRETATION
 ================================================================
 """
-    if current_zone and current_zone["kind"] == "resistance_top":
+    if current_zone and current_zone["kind"] == "olson_target":
+        body += (f"Reached Jesse Olson's published downside target ({current_zone['label']}). "
+                 f"His thesis: bearish 'W pattern', sub-$60K by end-June, targets $58k then ~$52.5k.\n")
+    elif current_zone and current_zone["kind"] == "resistance_top":
         body += "Re-entering cycle 5 peak resistance zone. Heavy supply expected.\n"
     elif current_zone and current_zone["kind"] == "support_strong":
         body += f"Entered STRONG support {current_zone['label']}. Major bottom zone — watch for reversal.\n"
@@ -150,6 +176,15 @@ INTERPRETATION
         body += f"Entered resistance {current_zone['label']}. Watch for rejection or breakout.\n"
     else:
         body += "Between zones — momentum continues.\n"
+
+    # Confluence: at any bottom-relevant level, cross-check YOUR own bottom scorecard
+    # so an Olson/guru price level never reads as a buy signal on its own.
+    if current_zone and current_zone["kind"] in ("olson_target", "support", "support_strong"):
+        conf = _bottom_confluence()
+        if conf:
+            body += f"\nCONFLUENCE CHECK — {conf}\n"
+            body += ("Reminder: a price level alone is not a signal. Deploy only if your bottom "
+                     "scorecard confirms (STRONG_BUY / DEEP_VALUE) at this level.\n")
 
     body += f"""
 ================================================================
