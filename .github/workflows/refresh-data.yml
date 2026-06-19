@@ -1,16 +1,16 @@
 name: Refresh dashboard data
 
-# Runs precompute on GitHub's servers hourly and commits the refreshed
-# panel caches, so the Streamlit Cloud dashboard stays current with ZERO
-# dependence on Dave's laptop or wifi. Manual run available too.
-# Hourly (not 3h) because GitHub free-tier SKIPS scheduled runs on
-# low-activity repos — more attempts = fewer stale gaps. Public repo,
-# so Action minutes are unlimited/free; each run's own commit also keeps
-# the repo "active" which itself reduces schedule-skipping.
+# FALLBACK refresher. Primary freshness now comes from the always-on local
+# task Crypto_dashboard_push, which pushes the locally-recomputed caches every
+# hour (see push_dashboard.py). This Action is the backstop for when that
+# machine is OFF: it recomputes on GitHub's servers and commits the caches with
+# ZERO dependence on the laptop. Every 6h (not hourly) since it's only a
+# fallback — fewer redundant commits. GitHub free-tier may still skip some
+# scheduled runs; that's acceptable for a backstop. Manual run available too.
 
 on:
   schedule:
-    - cron: '17 * * * *'     # hourly (UTC), 17 min past (avoids the congested :00 slot)
+    - cron: '17 */6 * * *'   # every 6h (UTC), :17 past — fallback cadence only
   workflow_dispatch: {}       # adds a "Run workflow" button
 
 permissions:

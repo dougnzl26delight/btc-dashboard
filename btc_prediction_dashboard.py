@@ -1046,7 +1046,10 @@ with st.sidebar:
 # ╚══════════════════════════════════════════════════════════════╝
 try:
     from datetime import datetime as _dt_mh
-    _mh_date = _dt_mh.now().strftime("%a %d %b %Y")
+    from zoneinfo import ZoneInfo as _ZI_mh
+    # NZ time — this renders on the Streamlit Cloud server (UTC), so a naive
+    # now() would show yesterday's date all NZ morning.
+    _mh_date = _dt_mh.now(_ZI_mh("Pacific/Auckland")).strftime("%a %d %b %Y")
 except Exception:
     _mh_date = ""
 st.markdown(
