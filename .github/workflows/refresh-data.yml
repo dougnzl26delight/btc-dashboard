@@ -50,6 +50,12 @@ jobs:
             echo "No cache changes this run."
           else
             git commit -m "data: refresh dashboard caches [skip ci]"
-            # self-heal if main advanced since checkout (e.g. overlapping runs)
-            git push || { git pull --rebase --autostash origin main && git push; }
+            # Self-heal if main advanced since checkout (overlapping runs / local push).
+            # A lost push race is NOT a failure: another refresher already published
+            # fresh caches this cycle, so exit 0 instead of emailing a failed job.
+            if git push; then exit 0; fi
+            echo "push rejected; rebasing onto latest and retrying"
+            if git pull --rebase --autostash origin main && git push; then exit 0; fi
+            git rebase --abort 2>/dev/null || true
+            echo "::notice::Lost the push race — fresh caches already published this cycle; not failing."
           fi
