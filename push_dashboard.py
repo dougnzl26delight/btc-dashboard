@@ -53,13 +53,16 @@ def main() -> None:
 
     git("commit", "-m", "data: refresh dashboard caches [skip ci]")
 
-    # Push; if we're behind (the Action pushed too), rebase onto origin and retry.
+    # Push. If we lost the race (the Worker/Action published first), DON'T fight
+    # binary rebase conflicts on the regenerated caches — that's what left the repo
+    # stuck in a conflict state before. Just sync hard to origin and let the next
+    # cycle re-publish; origin already has fresh data from whoever won, nothing lost.
     if git("push", "origin", "main", check=False).returncode != 0:
-        print("push rejected (behind origin) — rebasing and retrying")
-        git("pull", "--rebase", "--autostash", "origin", "main", check=False)
-        git("push", "origin", "main")
-
-    print("published OK")
+        print("lost the push race — syncing to origin; next cycle re-publishes")
+        git("fetch", "origin", "main", check=False)
+        git("reset", "--hard", "origin/main", check=False)
+    else:
+        print("published OK")
 
 
 if __name__ == "__main__":
