@@ -1,13 +1,13 @@
 {
-  "generated_local": "2026-06-27T04:24:58.274224+12:00",
+  "generated_local": "2026-06-27T05:24:59.442949+12:00",
   "date": "2026-06-27",
   "date_friendly": "Sat 27 Jun 2026",
   "summary": "1 thing changed in the last 24 hours.",
   "lines": [
-    "\u20bf Bitcoin **rose 0.4%** in the last 24 hours, to **$59,938**.",
+    "\u20bf Bitcoin **rose 0.5%** in the last 24 hours, to **$60,033**.",
     "\ud83d\udcc9 Stocks look **calmer**: 1/10 'toppy' signs now (was 2)."
   ],
-  "btc_24h_pct": 0.3683790151219585,
+  "btc_24h_pct": 0.5220935314319394,
   "first": false,
   "plan": "WAITING"
 }
