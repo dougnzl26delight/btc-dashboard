@@ -521,6 +521,29 @@ else:
 st.divider()
 st.subheader("💰 P&L Overview — combined paper account")
 
+# Book Truth — the honest state of the book (effective bets, data sufficiency).
+# Reads before any P&L detail: how many INDEPENDENT bets is the book really
+# running, and can we even assess edge yet? Cache-first, fail-safe.
+try:
+    from core.dashboard_cache import get_cached as _bt_get
+    _bt = _bt_get("book_truth")
+    if _bt is None:
+        from core.book_truth import compute as _bt_compute
+        _bt = _bt_compute()
+    if isinstance(_bt, dict) and _bt.get("status") == "ok":
+        _btc = st.columns(4)
+        _btc[0].metric("Effective bets", f"{_bt['effective_bets']:.1f}",
+                       f"of {_bt['n_sleeves']} sleeves", delta_color="off")
+        _btc[1].metric("Sleeves active",
+                       f"{_bt['n_sleeves_active']}/{_bt['n_sleeves']}", delta_color="off")
+        _btc[2].metric("Portfolio DD", f"{_bt['portfolio_drawdown']*100:+.1f}%",
+                       f"net long {_bt['net_long_exposure']*100:.0f}%", delta_color="off")
+        _btc[3].metric("Can assess edge?",
+                       "yes" if _bt["can_assess_edge"] else "NOT YET", delta_color="off")
+        st.caption("⚖️ " + _bt["verdict"])
+except Exception:
+    pass
+
 def _live_price(asset):
     """Get latest price for asset, prefer WS cache, fall back to watchlist."""
     if _live_prices:

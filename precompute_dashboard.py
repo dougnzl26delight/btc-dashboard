@@ -79,6 +79,12 @@ def _panels() -> dict:
         return compute()
     _safe("btc_alpha_regime", _btc_alpha_regime)
 
+    # Book truth: effective bets, live-vs-backtest, data sufficiency (fast, local).
+    def _book_truth():
+        from core.book_truth import compute
+        return compute()
+    _safe("book_truth", _book_truth)
+
     def _unified_decision():
         from core.btc_unified_decision import unified_decision
         return unified_decision(current_equity_pct=70, current_btc_pct=30, total_stake_nzd=130_000)
