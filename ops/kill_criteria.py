@@ -53,19 +53,28 @@ def current_equity(mode: str = "paper") -> dict:
     # Position values
     attrib = load_attribution()
     position_value = 0.0
+    n_stale_marks = 0
     per_sleeve_pnl = {"systematic_pro_trend": 0.0, "discretionary": 0.0,
                       "basis_arb": 0.0, "xsmom": 0.0, "bah_btc": 0.0,
                       "unknown": 0.0}
     for pair, tag in attrib.items():
         if pair.startswith("basis:"):
             continue  # basis legs net to ~0; perp side handled by perp broker
+        # FIX 2026-07-04: attribution keys are sleeve-tagged ("xsmom:SOL/USDT",
+        # "grid:BTC/USDT"). Passing that whole string to the broker raises
+        # BadSymbol, so EVERY position silently marked at entry_price -> equity
+        # froze at cost basis. Strip the leading sleeve tag (only a colon BEFORE
+        # the "/", so a perp symbol like "BTC/USDT:USDT" is left intact).
+        _slash, _colon = pair.find("/"), pair.find(":")
+        market = pair[_colon + 1:] if (0 <= _colon < _slash) else pair
         try:
-            ticker = perp.ticker(pair) if tag.get("side") == "short" else spot.get_ticker(pair)
+            ticker = perp.ticker(market) if tag.get("side") == "short" else spot.get_ticker(market)
             last = float(ticker.get("last") or ticker.get("close") or 0)
         except Exception:
-            last = float(tag["entry_price"])
+            last = 0.0
         if last <= 0:
-            last = float(tag["entry_price"])
+            last = float(tag["entry_price"])   # last-resort mark; counted stale
+            n_stale_marks += 1
         sign = 1 if tag["side"] == "long" else -1
         pnl = sign * tag["qty"] * (last - tag["entry_price"])
         sleeve = tag.get("sleeve", "unknown")
@@ -79,6 +88,7 @@ def current_equity(mode: str = "paper") -> dict:
         "total_equity": total_equity,
         "spot_cash": spot_cash, "perp_cash": perp_cash,
         "position_value_long": position_value,
+        "n_stale_marks": n_stale_marks,   # >0 = some position couldn't get a live price
         "per_sleeve_pnl": per_sleeve_pnl,
     }
 
