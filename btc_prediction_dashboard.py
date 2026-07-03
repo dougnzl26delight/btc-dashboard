@@ -1173,6 +1173,35 @@ except Exception as _e:
 # ╔══════════════════════════════════════════════════════════════╗
 # ║                          TABS                                 ║
 # ╚══════════════════════════════════════════════════════════════╝
+# ╔══════════════════════════════════════════════════════════════════════╗
+# ║ REGION MAP (auto-generated 2026-07-04 — regenerate after big edits)   ║
+# ║ Dependency audit 2026-07-04: every region below is self-contained     ║
+# ║ (preamble names + own locals only; no cross-region data flow), so any ║
+# ║ region can be extracted to a module later without breaking others.    ║
+# ║ Add NEW panels to the correct home tab — not wherever is convenient.  ║
+# ╠══════════════════════════════════════════════════════════════════════╣
+# ║  ~line  1191  tab_signals    → Signals                  (  17 lines) ║ ║
+# ║  ~line  1208  tab_gurus      → Research                 ( 463 lines) ║ ║
+# ║  ~line  1671  tab_today      → Today                    (  49 lines) ║ ║
+# ║  ~line  1720  tab_research   → Research                 ( 117 lines) ║ ║
+# ║  ~line  1837  tab_playbook   → Playbook                 ( 213 lines) ║ ║
+# ║  ~line  2050  tab_research   → Research                 ( 219 lines) ║ ║
+# ║  ~line  2269  tab_signals    → Signals                  ( 967 lines) ║ ║
+# ║  ~line  3236  tab_research   → Research                 (  57 lines) ║ ║
+# ║  ~line  3293  tab_signals    → Signals                  (1188 lines) ║ ║
+# ║  ~line  4481  _unified_top   → Signals (renders FIRST)  ( 275 lines) ║ ║
+# ║  ~line  4756  tab_signals    → Signals                  ( 306 lines) ║ ║
+# ║  ~line  5062  tab_playbook   → Playbook                 ( 536 lines) ║ ║
+# ║  ~line  5598  tab_simple     → Today                    ( 259 lines) ║ ║
+# ║  ~line  5857  tab_cycle      → Research                 ( 473 lines) ║ ║
+# ║  ~line  6330  tab_onchain    → Research                 ( 273 lines) ║ ║
+# ║  ~line  6603  tab_technical  → Research                 ( 160 lines) ║ ║
+# ║  ~line  6763  tab_detail     → Research                 ( 111 lines) ║ ║
+# ║  ~line  6874  tab_charts     → Signals                  ( 109 lines) ║ ║
+# ║  ~line  6983  tab_scorecards → Research                 ( 126 lines) ║ ║
+# ║  ~line  7109  tab_macro      → Signals                  ( 292 lines) ║ ║
+# ║  ~line  7401  tab_exit       → Playbook                 ( 176 lines) ║ ║
+# ╚══════════════════════════════════════════════════════════════════════╝
 # 2026-07-04 guru restructure: 8 tabs -> 4.
 #   Today    = verdict + cycle position + Simpleton summary
 #   Signals  = the live engine (Unified Decision Engine renders FIRST)
