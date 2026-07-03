@@ -71,6 +71,14 @@ def _panels() -> dict:
         return full_regime_analysis(macro=macro, liquidity_z=liq["z"])
     _safe("regime", _regime)
 
+    # BTC alpha-vs-QQQ "rolling bubbles" regime gauge (2026-07; Evanss6-inspired,
+    # validated against data). Tracks BTC's ALPHA vs QQQ (flipped negative in
+    # 2025-26) not correlation (~0.5, uninformative) + BTC/QQQ ratio + ETH/BTC.
+    def _btc_alpha_regime():
+        from core.btc_alpha_regime import compute
+        return compute()
+    _safe("btc_alpha_regime", _btc_alpha_regime)
+
     def _unified_decision():
         from core.btc_unified_decision import unified_decision
         return unified_decision(current_equity_pct=70, current_btc_pct=30, total_stake_nzd=130_000)

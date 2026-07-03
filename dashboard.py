@@ -1040,6 +1040,34 @@ with _kl_cols[1]:
     except Exception:
         pass
 
+# BTC alpha vs QQQ — "rolling bubbles" regime gauge (Evanss6-inspired, 2026-07).
+# The informative variable is BTC's ALPHA vs the Nasdaq/AI trade (went negative
+# in 2025-26), NOT its correlation (~0.5, useless). Cache-first (precomputed),
+# live-compute fallback, fully fail-safe.
+try:
+    from core.dashboard_cache import get_cached
+    _ar = get_cached("btc_alpha_regime")
+    if _ar is None:
+        from core.btc_alpha_regime import compute as _ar_compute
+        _ar = _ar_compute()
+    if isinstance(_ar, dict) and _ar.get("status") == "ok":
+        st.markdown("##### BTC alpha vs QQQ — rolling-bubbles regime")
+        _ar_emoji = {"CRYPTO STARVED": "🔴", "TRANSITION": "🟡",
+                     "CRYPTO LEADING": "🟢"}.get(_ar["regime"], "⚪")
+        _arc = st.columns(3)
+        _arc[0].metric(f"{_ar_emoji} BTC alpha vs QQQ",
+                       f"{_ar['alpha_annual_90d']:+.0%}",
+                       f"90d ann · β {_ar['beta_90d']:.2f} · corr {_ar['corr_90d']:.2f}",
+                       delta_color="off")
+        _arc[1].metric("BTC/QQQ ratio", _ar["btc_qqq_ratio_trend"],
+                       f"{_ar['btc_qqq_ratio_vs_1y_avg']:+.0%} vs 1y avg",
+                       delta_color="off")
+        _arc[2].metric("ETH/BTC (alt bid)", f"{_ar['ethbtc']:.4f}",
+                       _ar["ethbtc_trend"], delta_color="off")
+        st.caption(_ar["summary"])
+except Exception:
+    pass
+
 # BTC PREDICTION MACHINE — top-of-dashboard regime banner + forecast panel
 try:
     from core.btc_prediction import state_of_btc
