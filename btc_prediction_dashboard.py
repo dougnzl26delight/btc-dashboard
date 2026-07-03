@@ -1174,33 +1174,38 @@ except Exception as _e:
 # ║                          TABS                                 ║
 # ╚══════════════════════════════════════════════════════════════╝
 # ╔══════════════════════════════════════════════════════════════════════╗
-# ║ REGION MAP (auto-generated 2026-07-04 — regenerate after big edits)   ║
-# ║ Dependency audit 2026-07-04: every region below is self-contained     ║
-# ║ (preamble names + own locals only; no cross-region data flow), so any ║
-# ║ region can be extracted to a module later without breaking others.    ║
+# ║ REGION MAP (auto-generated 2026-07-04b — post fresh-eyes review)      ║
+# ║ Line numbers are exact (map block itself = 34 lines, already counted).║
+# ║ Dependency audit: regions are self-contained (preamble + own locals), ║
+# ║ so any region can be extracted to a module without breaking others.   ║
 # ║ Add NEW panels to the correct home tab — not wherever is convenient.  ║
+# ║ Today renders slots first: _today_hero, _today_guard, then appends.   ║
 # ╠══════════════════════════════════════════════════════════════════════╣
-# ║  ~line  1191  tab_signals    → Signals                  (  17 lines) ║ ║
-# ║  ~line  1208  tab_gurus      → Research                 ( 463 lines) ║ ║
-# ║  ~line  1671  tab_today      → Today                    (  49 lines) ║ ║
-# ║  ~line  1720  tab_research   → Research                 ( 117 lines) ║ ║
-# ║  ~line  1837  tab_playbook   → Playbook                 ( 213 lines) ║ ║
-# ║  ~line  2050  tab_research   → Research                 ( 219 lines) ║ ║
-# ║  ~line  2269  tab_signals    → Signals                  ( 967 lines) ║ ║
-# ║  ~line  3236  tab_research   → Research                 (  57 lines) ║ ║
-# ║  ~line  3293  tab_signals    → Signals                  (1188 lines) ║ ║
-# ║  ~line  4481  _unified_top   → Signals (renders FIRST)  ( 275 lines) ║ ║
-# ║  ~line  4756  tab_signals    → Signals                  ( 306 lines) ║ ║
-# ║  ~line  5062  tab_playbook   → Playbook                 ( 536 lines) ║ ║
-# ║  ~line  5598  tab_simple     → Today                    ( 259 lines) ║ ║
-# ║  ~line  5857  tab_cycle      → Research                 ( 473 lines) ║ ║
-# ║  ~line  6330  tab_onchain    → Research                 ( 273 lines) ║ ║
-# ║  ~line  6603  tab_technical  → Research                 ( 160 lines) ║ ║
-# ║  ~line  6763  tab_detail     → Research                 ( 111 lines) ║ ║
-# ║  ~line  6874  tab_charts     → Signals                  ( 109 lines) ║ ║
-# ║  ~line  6983  tab_scorecards → Research                 ( 126 lines) ║ ║
-# ║  ~line  7109  tab_macro      → Signals                  ( 292 lines) ║ ║
-# ║  ~line  7401  tab_exit       → Playbook                 ( 176 lines) ║ ║
+# ║  line  1225  tab_signals    -> Signals                  (   4 lines)  ║
+# ║  line  1229  tab_today      -> Today                    (  18 lines)  ║
+# ║  line  1247  tab_gurus      -> Research                 (   6 lines)  ║
+# ║  line  1253  _today_guard   -> Today (slot 2)           (  37 lines)  ║
+# ║  line  1290  tab_research   -> Research                 ( 424 lines)  ║
+# ║  line  1714  _today_hero    -> Today (slot 1)           (  49 lines)  ║
+# ║  line  1763  tab_research   -> Research                 (  77 lines)  ║
+# ║  line  1840  tab_today      -> Today                    (  42 lines)  ║
+# ║  line  1882  tab_playbook   -> Playbook                 ( 213 lines)  ║
+# ║  line  2095  tab_research   -> Research                 ( 219 lines)  ║
+# ║  line  2314  tab_signals    -> Signals                  ( 967 lines)  ║
+# ║  line  3281  tab_research   -> Research                 (  79 lines)  ║
+# ║  line  3360  tab_signals    -> Signals                  (1167 lines)  ║
+# ║  line  4527  _unified_top   -> Signals (renders FIRST)  ( 275 lines)  ║
+# ║  line  4802  tab_signals    -> Signals                  ( 253 lines)  ║
+# ║  line  5055  tab_playbook   -> Playbook                 ( 589 lines)  ║
+# ║  line  5644  tab_simple     -> Today                    ( 256 lines)  ║
+# ║  line  5900  tab_cycle      -> Research                 ( 473 lines)  ║
+# ║  line  6373  tab_onchain    -> Research                 ( 273 lines)  ║
+# ║  line  6646  tab_technical  -> Research                 ( 160 lines)  ║
+# ║  line  6806  tab_detail     -> Research                 ( 111 lines)  ║
+# ║  line  6917  tab_charts     -> Signals                  ( 109 lines)  ║
+# ║  line  7026  tab_scorecards -> Research                 ( 126 lines)  ║
+# ║  line  7152  tab_macro      -> Signals                  ( 291 lines)  ║
+# ║  line  7443  tab_exit       -> Playbook                 ( 176 lines)  ║
 # ╚══════════════════════════════════════════════════════════════════════╝
 # 2026-07-04 guru restructure: 8 tabs -> 4.
 #   Today    = verdict + cycle position + Simpleton summary
@@ -1219,6 +1224,11 @@ except Exception as _e:
 # the script, rendered first via this container slot.
 with tab_signals:
     _unified_top = st.container()
+# Today renders in slot order: hero first, then the campaign guardrail -
+# regardless of where their code executes in the file.
+with tab_today:
+    _today_hero = st.container()
+    _today_guard = st.container()
 
 # Legacy tab-variable map (old `with tab_x:` blocks -> new homes)
 tab_simple     = tab_today
@@ -1239,6 +1249,8 @@ with tab_gurus:
     st.caption("Legendary crypto & macro top/bottom callers, scored off your LIVE signals. "
                "Framework-based sanity check — not investment advice.")
 
+
+with _today_guard:   # <- 2026-07-04 review fix: daily guardrail belongs on Today
     # ── 🧭 Campaign thesis health — pre-registered kill-criteria ──────────────
     try:
         @st.cache_data(ttl=1800, show_spinner=False)
@@ -1274,6 +1286,8 @@ with tab_gurus:
     except Exception:
         pass
 
+
+with tab_research:   # back to Guru Panel content
     # ── 🧭 GURU-GRADE DECISION UPGRADES (2026-06-13) ───────────────────────────
     # Theme-breadth gate · banded/time deploy · regime tag · BTC-vs-equity · ETF
     # flow quality. Surfaces the surgical upgrades that harden the framework for
@@ -1697,7 +1711,7 @@ with tab_gurus:
 # ─────────────────────────────────────────────────────────────────
 # OVERVIEW TAB — price chart, scorecard, RCap thermometer, action
 # ─────────────────────────────────────────────────────────────────
-with tab_today:   # hero banner (verdict + cycle) - 2026-07-04 restructure
+with _today_hero:   # hero banner (verdict + cycle) - renders FIRST on Today
     # ╔══════════════════════════════════════════════════════════════╗
     # ║                        HERO BANNER                            ║
     # ╚══════════════════════════════════════════════════════════════╝
@@ -1822,6 +1836,8 @@ with tab_research:   # <- 2026-07-04 restructure
     except Exception:
         st.caption("Jesse Olson feed — temporarily unavailable.")
 
+
+with tab_today:   # <- 2026-07-04 review fix: "what changed" belongs on Today
     # 🆕 DAILY CHANGE LOG — what's different since yesterday (Swift insistence)
     # ═══════════════════════════════════════════════════════════════════
     try:
@@ -2067,8 +2083,8 @@ with tab_playbook:   # <- 2026-07-04 restructure
         except Exception:
             st.caption("🛡️ Tail hedge status temporarily unavailable.")
 
-        # (BTC TOP scale-out ladder lives on the 🚪 Exit Plan tab — years away,
-        #  kept off Overview to avoid clutter. Email alerts fire regardless.)
+        # (BTC TOP scale-out ladder lives at the bottom of the Playbook tab —
+        #  years away, kept out of the daily flow. Email alerts fire regardless.)
 
         st.markdown("<hr style='border-color:#2a2d36; margin:18px 0;'>",
                     unsafe_allow_html=True)
@@ -3319,7 +3335,6 @@ with tab_research:   # <- 2026-07-04 restructure
         st.caption(f"Swift Dials — temporarily unavailable")
 
 
-with tab_signals:   # <- 2026-07-04 restructure
     # ═══════════════════════════════════════════════════════════════════
     # 🆕 LIQUIDATION HEATMAP — Coinglass embed (free)
     # Shows stop-loss clusters above & below price — where liquidations
@@ -3341,6 +3356,8 @@ with tab_signals:   # <- 2026-07-04 restructure
             unsafe_allow_html=True,
         )
 
+
+with tab_signals:   # <- 2026-07-04 review fix: Cockpit leads the section
     # ═══════════════════════════════════════════════════════════════════
     # 🎯 COCKPIT — single-glance answer view
     # Five gauges + theme strip + big verdict card. Everything below is
@@ -4499,9 +4516,9 @@ with tab_signals:   # <- 2026-07-04 restructure
         "background:#13161c; border-left:4px solid #888;'>"
         "<div style='font-size:11px; color:#888; text-transform:uppercase; "
         "letter-spacing:1.5px; margin-bottom:4px;'>Legacy / Detail Panels</div>"
-        "<div style='font-size:13px; color:#aaa;'>Everything below is detailed-reference. "
-        "The <b>Cockpit + Swift panels above</b> are the primary decision view. "
-        "Legacy panels remain accessible for debugging and historical comparison.</div>"
+        "<div style='font-size:13px; color:#aaa;'>The <b>Unified Decision Engine and "
+        "Cockpit above</b> give the verdict. Panels below add the supporting scorecards, "
+        "history and confirmation detail behind it.</div>"
         "</div>",
         unsafe_allow_html=True,
     )
@@ -4783,9 +4800,9 @@ until BTC bottom actually fires.
 
 
 with tab_signals:   # <- 2026-07-04 restructure
-    # === TOP CONFIRMATION SCORECARD (when to exit equities) — TOP PLACEMENT ===
-    # Moved up to be the FIRST scorecard visible since equities → BTC rotation
-    # is the user's primary use case
+    # === EQUITY TOP CONFIRMATION SCORECARD (when to exit equities) ===
+    # Primary rotation-side scorecard; renders in Signals below the divider.
+    # Its headline verdict also rolls up to the Unified Decision Engine on top.
     try:
         _top_bundle = cached_top_scorecard()
         top_sc = _top_bundle["scorecard"]
@@ -5034,6 +5051,8 @@ with tab_signals:   # <- 2026-07-04 restructure
 
     st.divider()
 
+
+with tab_playbook:   # <- 2026-07-04 review fix: the deploy trigger IS execution
     # === ETF-AWARE BOTTOM TRIGGER (combines scorecard + ETF flows) ===
     st.markdown("<div class='section-header'>🔺 ETF-Aware Bottom Trigger — when to deploy BTC</div>",
                  unsafe_allow_html=True)
@@ -5087,8 +5106,6 @@ with tab_signals:   # <- 2026-07-04 restructure
             C["lth"],
         ), unsafe_allow_html=True)
 
-
-with tab_playbook:   # <- 2026-07-04 restructure
     # 4-trigger matrix for clarity
     with st.expander("How the 4 triggers work"):
         st.markdown(
@@ -5853,12 +5870,9 @@ with tab_simple:
     # === What each tab is, in one line ===
     st.markdown("#### 🗂️ The other tabs, in one line each")
     st.markdown(
-        "- **🎯 Overview** — the full cockpit: everything at a glance (for when you want it all).\n"
-        "- **📈 Charts** — Bitcoin's cycle on a timeline, plus simple cheap/expensive dials.\n"
-        "- **📋 Scorecards** — the checklists behind the 'is it the bottom yet?' call.\n"
-        "- **📊 Macro** — the big economic picture (shares, money supply, risk on/off).\n"
-        "- **🚪 Exit Plan** — the plan for when to *sell* Bitcoin later (years away, near the top).\n"
-        "- **📚 Detail** — every individual signal, for the nerds.\n")
+        "- **📡 Signals** — the live engine: unified verdict, cockpit gauges and every scorecard.\n"
+        "- **🚪 Playbook** — what to actually *do*: rotation trigger, deploy plan, checklist, NZ tax.\n"
+        "- **🔬 Research** — the library: backtests, validation math, chart suites and guru feeds.\n")
 
     # === Glossary ===
     with st.expander("📖 What the words mean (plain-English glossary)"):
@@ -6357,7 +6371,7 @@ with tab_cycle:
 # ON-CHAIN TAB — pro signals, cost basis cards, aSOPR counter
 # ─────────────────────────────────────────────────────────────────
 with tab_onchain:
-    st.markdown("### 📋 Scorecards — on-chain layers + native top/bottom scorecards")
+    st.markdown("### 🔗 On-chain — signal layers, cost-basis cards + native scorecards")
     st.caption(
         "On-chain signal layers first (cost-basis, aSOPR, pro / institutional / "
         "premium-free), then the native top & bottom scorecards below. Open any "
@@ -6914,7 +6928,7 @@ with tab_charts:
         "**diminishing returns** (BTC's multi-trillion cap makes the old price *multiples* unreachable) "
         "and **ETF / institutional smoothing** (steady programmatic flows replace retail blow-offs). "
         "It's **symmetric — bottoms are shallower too** (2022 bottomed near MVRV 0.75, not a 2018-style "
-        "washout). The verdict already compensates: the **Cycle-6 detector** (Overview tab) auto-scales "
+        "washout). The verdict already compensates: the **Cycle-6 detector** (Signals tab) auto-scales "
         "the bottom-buy thresholds ~0.70–0.85× in a muted era, and the scorecards read these metrics by "
         "**percentile-rank within history**, not absolute levels — so it won't wait for a 2018-depth flush "
         "that may never come. **Read the bands relative-to-era, not absolute.**"
@@ -7012,7 +7026,7 @@ with tab_charts:
 with tab_scorecards:
     st.divider()
     st.markdown("#### 🧮 Native top & bottom scorecards")
-    st.caption("The headline verdicts here roll up to the Cockpit on the Overview tab.")
+    st.caption("The headline verdicts here roll up to the Cockpit on the Signals tab.")
 
     try:
         from core.dashboard_cache import get_cached as _gc
@@ -7127,8 +7141,8 @@ with tab_scorecards:
         st.warning(f"Scorecards data — temporarily unavailable")
 
     st.caption(
-        "📌 Original Equity Top Confirmation Scorecard, ETF-Aware Bottom Trigger, "
-        "and Bottom Confirmation Scorecard remain in the Overview tab's Legacy section."
+        "📌 The Equity Top Confirmation and Bottom Confirmation scorecards live on the "
+        "Signals tab; the ETF-Aware Bottom Trigger is on the Playbook tab."
     )
 
 
@@ -7417,14 +7431,13 @@ with tab_macro:
         st.warning(f"Macro panels — temporarily unavailable")
 
     st.caption(
-        "📌 Original Macro Drivers cards and Unified Decision detail panel remain in the "
-        "Overview tab's Legacy section."
+        "📌 The Macro Drivers cards and Unified Decision detail panel are on the Signals tab."
     )
 
 
 # ─────────────────────────────────────────────────────────────
 # 🚪 EXIT PLAN TAB — BTC top scale-out ladder (next bull, ~2029)
-# Parked on its own tab: years away, zero day-to-day relevance.
+# Parked at the bottom of Playbook: years away, zero day-to-day relevance.
 # Email alerts fire on tier changes regardless of this tab.
 # ─────────────────────────────────────────────────────────────
 with tab_exit:
@@ -7433,7 +7446,7 @@ with tab_exit:
         "The exit-side twin of the rotation trigger. Dormant through the bear — "
         "arms automatically when BTC returns to within 15% of its 365-day high "
         "(projected next-bull window ~2029, halving Apr 2028 + ~535d). "
-        "**You never need to check this tab** — tier escalations are flagged "
+        "**You never need to check this section** — tier escalations are flagged "
         "URGENT in the hourly alert email."
     )
     try:
