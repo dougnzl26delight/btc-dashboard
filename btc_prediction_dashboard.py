@@ -1173,21 +1173,36 @@ except Exception as _e:
 # ╔══════════════════════════════════════════════════════════════╗
 # ║                          TABS                                 ║
 # ╚══════════════════════════════════════════════════════════════╝
-(tab_simple, tab_overview, tab_charts, tab_scorecards, tab_macro, tab_exit,
- tab_detail, tab_gurus) = st.tabs([
-    "🔰 Simpleton Summary",
-    "🎯 Overview",
-    "📈 Charts",
-    "📋 Scorecards",
-    "📊 Macro",
-    "🚪 Exit Plan",
-    "📚 Detail",
-    "👁 Guru Panel",
+# 2026-07-04 guru restructure: 8 tabs -> 4.
+#   Today    = verdict + cycle position + Simpleton summary
+#   Signals  = the live engine (Unified Decision Engine renders FIRST)
+#   Playbook = ALL execution: rotation trigger, 4-trigger matrix, checklist, tax
+#   Research = backtests, validation, Swift suite, guru feeds, detail
+# No content deleted - every panel re-homed. Legacy tab vars are aliased so
+# existing `with tab_x:` blocks render into their new homes.
+(tab_today, tab_signals, tab_playbook, tab_research) = st.tabs([
+    "🎯 Today",
+    "📡 Signals",
+    "🚪 Playbook",
+    "🔬 Research",
 ])
-# Aliases for legacy code that referenced old names — keep working without rewriting
-tab_cycle = tab_charts          # cycle math content now on Charts tab
-tab_onchain = tab_scorecards    # on-chain detail content now on Scorecards tab
-tab_technical = tab_detail      # Olson technical content now on Detail tab
+# Reserve the TOP of Signals for the Unified Decision Engine: computed late in
+# the script, rendered first via this container slot.
+with tab_signals:
+    _unified_top = st.container()
+
+# Legacy tab-variable map (old `with tab_x:` blocks -> new homes)
+tab_simple     = tab_today
+tab_overview   = tab_today      # hero banner; rest of its body re-homed inline below
+tab_charts     = tab_signals
+tab_macro      = tab_signals
+tab_exit       = tab_playbook
+tab_scorecards = tab_research
+tab_detail     = tab_research
+tab_gurus      = tab_research
+tab_cycle      = tab_research   # cycle-math deep dive
+tab_onchain    = tab_research   # on-chain detail
+tab_technical  = tab_research   # Olson technical detail
 
 # ── 👁 GURU PANEL tab — legends scored off the live signals ───────────────────
 with tab_gurus:
@@ -1653,7 +1668,7 @@ with tab_gurus:
 # ─────────────────────────────────────────────────────────────────
 # OVERVIEW TAB — price chart, scorecard, RCap thermometer, action
 # ─────────────────────────────────────────────────────────────────
-with tab_overview:
+with tab_today:   # hero banner (verdict + cycle) - 2026-07-04 restructure
     # ╔══════════════════════════════════════════════════════════════╗
     # ║                        HERO BANNER                            ║
     # ╚══════════════════════════════════════════════════════════════╝
@@ -1701,6 +1716,8 @@ with tab_overview:
         )
 
 
+
+with tab_research:   # <- 2026-07-04 restructure
     # ═══════════════════════════════════════════════════════════════════
     # ── 🎙️ JESSE OLSON — latest X feed + ideas digest (on-demand refresh) ──────
     try:
@@ -1816,6 +1833,8 @@ with tab_overview:
     except Exception as _e:
         pass
 
+
+with tab_playbook:   # <- 2026-07-04 restructure
     # ═══════════════════════════════════════════════════════════════════
     # 🔄 ROTATION TRIGGER — single-shot equity→BTC rotation (top of page)
     # When ANY of 3 paths fires (2-of-2 each), email arrives with NZ$ amounts.
@@ -2027,6 +2046,8 @@ with tab_overview:
     except Exception as _rte:
         st.caption(f"Rotation trigger — temporarily unavailable")
 
+
+with tab_research:   # <- 2026-07-04 restructure
     # ═══════════════════════════════════════════════════════════════════
     # 📊 STATISTICAL VALIDATION — does this dashboard actually have edge?
     # Backtest + correlation + sensitivity + confidence + cycle-6 adjustment.
@@ -2244,6 +2265,8 @@ with tab_overview:
     except Exception as _ve:
         st.caption(f"Validation panel — temporarily unavailable")
 
+
+with tab_signals:   # <- 2026-07-04 restructure
     # ═══════════════════════════════════════════════════════════════════
     # 🔺 BTC BOTTOM WATCH — when to BUY BTC (primary focus, post-peak phase)
     # ALL signals in this block are BTC-specific. Equity tracking is below
@@ -3209,6 +3232,8 @@ with tab_overview:
     except Exception as _e:
         st.caption(f"Equity Top Watch — temporarily unavailable")
 
+
+with tab_research:   # <- 2026-07-04 restructure
     # ═══════════════════════════════════════════════════════════════════
     # 🆕 SWIFT DIALS — high-impact glance-able indicators (BTC cycle context)
     # Built per Swift's gap analysis: Halving Clock, BTC Dominance, S2F,
@@ -3264,6 +3289,8 @@ with tab_overview:
     except Exception as _e:
         st.caption(f"Swift Dials — temporarily unavailable")
 
+
+with tab_signals:   # <- 2026-07-04 restructure
     # ═══════════════════════════════════════════════════════════════════
     # 🆕 LIQUIDATION HEATMAP — Coinglass embed (free)
     # Shows stop-loss clusters above & below price — where liquidations
@@ -4450,6 +4477,8 @@ with tab_overview:
         unsafe_allow_html=True,
     )
 
+
+with _unified_top:   # <- 2026-07-04 restructure
     # ═══════════════════════════════════════════════════════════════════
     # UNIFIED DECISION ENGINE — single source of truth at the top
     # Combines: macro layer (8 leading) + regime state machine
@@ -4723,6 +4752,8 @@ until BTC bottom actually fires.
     except Exception as e:
         st.caption(f"Price chart unavailable: {e}")
 
+
+with tab_signals:   # <- 2026-07-04 restructure
     # === TOP CONFIRMATION SCORECARD (when to exit equities) — TOP PLACEMENT ===
     # Moved up to be the FIRST scorecard visible since equities → BTC rotation
     # is the user's primary use case
@@ -5027,6 +5058,8 @@ until BTC bottom actually fires.
             C["lth"],
         ), unsafe_allow_html=True)
 
+
+with tab_playbook:   # <- 2026-07-04 restructure
     # 4-trigger matrix for clarity
     with st.expander("How the 4 triggers work"):
         st.markdown(
