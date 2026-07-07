@@ -33,34 +33,30 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 # Known signal-correlation clusters in the BTC bottom scorecard.
 # Signals in the same cluster share underlying mechanism (UTXO age, miners,
 # derivatives), so they count as ~1 independent observation, not N.
+# 2026-07-07 logic audit (F3): patterns broadened to STEMS so the
+# percentile-rank variants ("Mayer percentile-rank", "Golden Ratio pct-rank",
+# "Log regression pct-rank") and label drift ("2-year MA", "MVRV-Z < -1.5 OR
+# raw MVRV") fold into their real mechanism instead of falling to "other" and
+# being counted as extra "independent" votes. Price-vs-long-average ratios
+# (Mayer / Golden Ratio / Log-reg / 200wMA / 2yMA / Pi) are ONE axis.
 SIGNAL_CLUSTERS = {
     "on_chain_valuation": [
-        # All UTXO-age derivatives — one underlying mechanism
-        "MVRV-Z capitulation", "Realized Cap drawdown",
-        "Realized Cap DD", "Reserve Risk",
-        "AHR999", "LTH cost basis",
-        "Mayer Multiple", "Mayer < 1",
+        # UTXO/realized-value + price-vs-long-average valuation — one axis
+        "mvrv", "realized cap", "reserve risk", "ahr999", "lth cost",
+        "mayer", "golden ratio", "log regression", "log reg",
     ],
     "miner_health": [
-        # All derived from hash rate / difficulty
-        "Hash Ribbon", "Hash Ribbon golden cross",
-        "Hash Ribbon Golden Cross", "Difficulty cycle",
-        "Puell Multiple",
+        "hash ribbon", "difficulty cycle", "puell",
     ],
     "derivatives_positioning": [
-        # Funding-related
-        "Funding rate", "Funding rate extreme",
-        "Coinbase Premium", "Open Interest",
+        "funding", "coinbase premium", "open interest",
     ],
     "cycle_timing": [
-        # Halving / cycle analog
-        "Cycle day analog", "Pi Cycle Bottom",
-        "200-week MA", "2y MA", "Halving clock",
+        "cycle day", "cycle-4 analog", "pi cycle",
+        "200-week", "200 week", "200wma", "2-year ma", "2y ma", "halving",
     ],
     "macro_overlay": [
-        # External regime
-        "Liquidity", "Liquidity Z-score",
-        "NVT", "NVT Signal",
+        "liquidity", "nvt",
     ],
 }
 
@@ -262,22 +258,34 @@ def signal_correlation() -> dict:
         if n_firing_in_cluster > 0:
             n_clusters_firing += 1
 
-    n_clusters_total = sum(1 for v in cluster_breakdown.values() if v["n_total"] > 0)
+    # 2026-07-07 logic audit (F3): "other" is the UNCLASSIFIED residual — it is
+    # NOT one deduplicated mechanism. Counting it as a single independent
+    # cluster (as before) double-counted an axis whenever a known-redundant
+    # signal leaked into it. Exclude it from the dedup math and report its
+    # firing members separately as unclustered.
+    _named = {k: v for k, v in cluster_breakdown.items() if k != "other"}
+    n_clusters_total = sum(1 for v in _named.values() if v["n_total"] > 0)
+    n_clusters_firing = sum(1 for v in _named.values() if v["active"])
+    other = cluster_breakdown.get("other", {})
+    n_other_firing = other.get("n_firing", 0) if other else 0
 
-    # The naive count (n_firing / n_total) vs effective count (clusters firing)
     naive_pct = n_firing / n_total if n_total else 0
     effective_pct = n_clusters_firing / n_clusters_total if n_clusters_total else 0
+    _other_note = (f" plus {n_other_firing} unclustered signal(s)"
+                   if n_other_firing else "")
 
     return {
         "raw_firing":        f"{n_firing}/{n_total}",
         "raw_pct":           round(naive_pct * 100, 1),
         "clusters_firing":   f"{n_clusters_firing}/{n_clusters_total}",
         "effective_pct":     round(effective_pct * 100, 1),
+        "n_other_firing":    n_other_firing,
         "cluster_breakdown": cluster_breakdown,
         "interpretation":    (f"Raw scorecard shows {n_firing}/{n_total} signals. "
-                                f"After deduplicating correlated signals into {n_clusters_total} "
-                                f"independent clusters, you have {n_clusters_firing} truly "
-                                f"independent signals firing — that's the real evidence count."),
+                                f"Deduplicated into {n_clusters_total} independent "
+                                f"mechanisms, {n_clusters_firing} are firing{_other_note} "
+                                f"— that's the real evidence count (correlated "
+                                f"valuation ratios count once, not many times)."),
     }
 
 

@@ -181,7 +181,25 @@ def classify_regime(buckets: dict, macro: dict, curve_uninvert: bool) -> Regime:
     if growth >= 1 or plumbing >= 2 or credit >= 1:
         return "LATE_CYCLE"
 
-    # RISK_ON: clean bill of health
+    # 2026-07-07 logic audit (F1): the buckets can be all-zero either because
+    # the macro picture is genuinely clean OR because the underlying data is
+    # UNAVAILABLE (curve/liquidity feeds down). Returning the green "RISK_ON"
+    # all-clear on MISSING data is fail-open-to-bullish — the header then shows
+    # a reassuring green regime while liquidity may be contracting. Fail SAFE:
+    # if fewer than half the growth/credit macro inputs actually reported, drop
+    # to LATE_CYCLE (cautious) rather than claim a clean bill of health.
+    _macro_keys = ("oecd_cli_6m", "cb_lei_yoy", "claims_cross", "sahm_rule",
+                   "credit_impulse", "sloos_tightening")
+    _avail = sum(
+        1 for k in _macro_keys
+        if isinstance(macro.get(k), dict)
+        and "unavailable" not in str(macro[k].get("status", "")).lower()
+        and macro[k].get("firing") is not None
+    )
+    if _avail < len(_macro_keys) / 2:
+        return "LATE_CYCLE"
+
+    # RISK_ON: clean bill of health (on real data)
     return "RISK_ON"
 
 

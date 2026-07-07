@@ -428,8 +428,13 @@ LEADTIME_EPISODES = [
     {"year": "2020", "kind": "crash (COVID)",   "total_dd": -29,
      "warn_off": -1,   "exec_off": -18, "dodged": -13, "lead_days": 7},
 ]
-LEADTIME_SOURCE = ("Backtest on real QQQ daily data - NASDAQ tops 2018 / 2020 / 2022. "
-                   "Past performance is no guarantee.")
+# 2026-07-07 claim-validity audit: LEADTIME_EPISODES above are HAND-COMPILED
+# historical constants, NOT a reproducible backtest — nothing here re-simulates
+# QQQ history. Labeled honestly so the rotation email doesn't present n=3
+# stylized numbers as measured edge.
+LEADTIME_SOURCE = ("Illustrative, not a backtest — hand-compiled from 3 past "
+                   "NASDAQ tops (2018/2020/2022), in-sample, n=3. A guide to "
+                   "shape, not a measured edge. Past performance is no guarantee.")
 
 
 def leadtime_context(status: str) -> dict:

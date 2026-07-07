@@ -143,7 +143,11 @@ def hash_ribbon_golden_cross() -> dict:
 def nvt_signal_low() -> dict:
     """NVT Signal: Network Value to Transactions ratio (90d MA tx volume).
 
-    NVTS < 40 historically signals oversold bottom (Willy Woo).
+    Woo's classic absolute <40 threshold is calibrated to CoinMetrics adjusted
+    volume. We now source tx volume from blockchain.com (different scale), so
+    we fire on PERCENTILE-RANK within this series' own history instead — bottom
+    ~15th percentile = oversold. Scale-invariant; consistent with the other
+    percentile-rank criteria (Mayer/GR/log-reg) on this board.
     """
     cap = _cm("CapMrktCurUSD", days=400)
     tx_vol = _cm("TxTfrValAdjUSD", days=400)
@@ -151,7 +155,8 @@ def nvt_signal_low() -> dict:
         # 2026-07-07 signals audit: TxTfrValAdjUSD (and TxTfrValUSD) left the
         # CoinMetrics community tier — this criterion read "unavailable"
         # indefinitely. Free fallback: blockchain.com estimated tx volume
-        # (no key, daily granularity). Same NVT construction, Woo threshold.
+        # (no key, daily granularity). Different scale than CoinMetrics, so
+        # the criterion below uses percentile-rank, NOT the absolute <40.
         try:
             import json as _json, urllib.request as _ur
             _u = ("https://api.blockchain.info/charts/"
@@ -175,14 +180,21 @@ def nvt_signal_low() -> dict:
     if df.empty or len(df) < 90:
         return {"met": False, "status": "insufficient history"}
     tx_90d = df.iloc[:, 1].rolling(90).mean()
-    nvts = df.iloc[:, 0] / tx_90d
+    nvts = (df.iloc[:, 0] / tx_90d).dropna()
+    if len(nvts) < 120:
+        return {"met": False, "status": "insufficient NVT history"}
     nvts_now = float(nvts.iloc[-1])
-    met = nvts_now < 40
+    # 2026-07-07 fix: percentile-rank, not absolute <40 (blockchain.com series
+    # runs on a different scale, ~200, where <40 could NEVER fire). Fraction of
+    # this series' own history below the current read; bottom 15% = oversold.
+    pct = float((nvts < nvts_now).mean())
+    met = pct < 0.15
     return {
         "met": bool(met),
         "value": nvts_now,
-        "status": f"NVT Signal {nvts_now:.1f}  ({'OVERSOLD' if met else 'normal'})  threshold < 40",
-        "rationale": "Willy Woo's NVT Signal — sub-40 marks bottom region.",
+        "status": (f"NVT Signal {nvts_now:.0f} = {pct*100:.0f}th pct of "
+                   f"{len(nvts)}d history  ({'OVERSOLD' if met else 'normal'})"),
+        "rationale": "Woo's NVT — bottom-decile relative to its own history marks the oversold band.",
     }
 
 
@@ -564,7 +576,9 @@ def btc_native_bottom_scorecard() -> dict:
         criteria.append(r)
         if r.get("met"): n_met += 1
 
-    # Tiers scaled for 15 criteria (was 12)
+    # 2026-07-04..07: criteria grew 12 -> 16; tier thresholds below and the
+    # verdict denominators are kept CONSISTENT with the live n_total (16).
+    _nt = len(criteria)
     if n_met >= 13:    level = "EXTREME"
     elif n_met >= 11:  level = "DEEP_VALUE"
     elif n_met >= 8:   level = "STRONG_BUY"
@@ -573,11 +587,11 @@ def btc_native_bottom_scorecard() -> dict:
     else:              level = "HOLD"
 
     verdict_text = {
-        "EXTREME":     "Once-a-decade bottom signal. Deploy 80%+ of dry powder.",
-        "DEEP_VALUE":  "Generational bottom confirmed across 9+ guru signals. Deploy 60%, retain 40% for retests.",
-        "STRONG_BUY":  "Multi-signal confluence (7+/12). 40% DCA pace recommended.",
-        "ACCUMULATE":  "Bottom forming (5+/12). Start DCA at 20% pace.",
-        "WATCH":       "Early bottom signals (3+/12). Track closely, no deploy yet.",
+        "EXTREME":     f"Once-a-decade bottom signal ({n_met}/{_nt}). Deploy 80%+ of dry powder.",
+        "DEEP_VALUE":  f"Generational bottom confirmed ({n_met}/{_nt}). Deploy 60%, retain 40% for retests.",
+        "STRONG_BUY":  f"Multi-signal confluence (>=8/{_nt}). 40% DCA pace recommended.",
+        "ACCUMULATE":  f"Bottom forming (>=6/{_nt}). Start DCA at 20% pace.",
+        "WATCH":       f"Early bottom signals (>=3/{_nt}). Track closely, no deploy yet.",
         "HOLD":        "Mid-cycle or bull. No bottom forming.",
     }[level]
 

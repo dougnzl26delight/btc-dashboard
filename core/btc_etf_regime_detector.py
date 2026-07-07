@@ -60,7 +60,9 @@ def _etf_flows_history() -> Optional[pd.DataFrame]:
     try:
         import io
         from core.btc_premium_free import _http_get
-        body = _http_get("https://farside.co.uk/btc/", ttl=21600)  # 6h cache
+        # 2026-07-07 factual audit: all-data page (full ~640-row history) so the
+        # 60d cumulative regime logic actually has 60 days (was 14 -> 5d=30d=60d).
+        body = _http_get("https://farside.co.uk/bitcoin-etf-flow-all-data/", ttl=21600)
         if not body:
             return None
         tables = pd.read_html(io.StringIO(body))

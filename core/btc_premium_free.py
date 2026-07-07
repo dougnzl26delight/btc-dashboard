@@ -141,8 +141,10 @@ def etf_flows() -> Optional[dict]:
     """
     try:
         # Farside provides daily HTML; we extract the table
-        # /btc/ is their main BTC ETF flows page (works with browser UA)
-        url = "https://farside.co.uk/btc/"
+        # 2026-07-07 factual audit: /btc/ only exposes ~14 rows, so "30d"
+        # sums were really 14d. The all-data page carries full daily history
+        # (~640 rows) → real 5d/30d windows.
+        url = "https://farside.co.uk/bitcoin-etf-flow-all-data/"
         body = _http_get(url, ttl=21600)  # 6h cache
         if not body: return None
         # Parse table — column "Total" is net daily flow ($M)
@@ -157,17 +159,24 @@ def etf_flows() -> Optional[dict]:
                 break
         if total_col is None:
             return None
-        # Last 30 rows = recent days
-        recent = df.tail(30).copy()
-        recent[total_col] = pd.to_numeric(
-            recent[total_col].astype(str).str.replace(r"[^\d\.\-]", "", regex=True),
+        # 2026-07-07 factual audit: Farside appends SUMMARY rows (all-time
+        # cumulative ~$50B, plus Average/Maximum/Minimum). The old code took
+        # df.tail(30) WITHOUT stripping them, so the ~$50B cumulative row landed
+        # inside the 5-day window -> the verdict card showed "+$53,926M (5d)"
+        # (a $54B week, ~50x reality). Coerce the WHOLE column, drop non-daily
+        # magnitudes (real daily net flow tops out ~$1-2B; |x|>3000 = a summary
+        # row), THEN window. Matches btc_etf_regime_detector's filter.
+        col = pd.to_numeric(
+            df[total_col].astype(str).str.replace(r"[^\d\.\-]", "", regex=True),
             errors="coerce",
         ).dropna()
-        if recent[total_col].empty:
+        col = col[col.abs() <= 3000]   # strip summary rows
+        if col.empty:
             return None
-        last_5 = float(recent[total_col].tail(5).sum())
-        last_30 = float(recent[total_col].tail(30).sum())
-        last_day = float(recent[total_col].iloc[-1])
+        last_5 = float(col.tail(5).sum())
+        last_30 = float(col.tail(30).sum())
+        last_day = float(col.iloc[-1])
+        n_days = int(len(col))
 
         # Score: cumulative 5-day flow
         if last_5 > 1500: score = 0.9     # huge inflows
@@ -183,6 +192,7 @@ def etf_flows() -> Optional[dict]:
             "last_day_M": last_day,
             "last_5d_M": last_5,
             "last_30d_M": last_30,
+            "n_days": n_days,
             "source": "farside.co.uk",
             "note": (f"BTC ETF net flows: ${last_day:+.0f}M today, "
                       f"${last_5:+.0f}M (5d), ${last_30:+.0f}M (30d). "
