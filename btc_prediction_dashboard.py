@@ -2796,11 +2796,12 @@ with tab_signals:   # <- 2026-07-04 restructure
 
         # === GURU TRACK RECORDS (Anya's ask) ===
         with st.expander("🎙️ Guru track records — how reliable is each source?", expanded=False):
-            st.caption("⚠️ Hand-curated public calls — illustrative and "
-                       "survivorship-prone (calls were logged after outcomes were "
-                       "known), n≈3–4 per guru. NOT a measured track record. The "
-                       "real, forward-graded record is the auto-scored guru/Olson "
-                       "scorecard — this is context, not evidence.")
+            st.caption("✅ Outcomes graded OBJECTIVELY from forward price action "
+                       "(guru_grader) — not hand-scored. hit rate = right/(right+wrong) "
+                       "over decisive calls; marginal & still-open calls excluded. "
+                       "Remaining caveat: SURVIVORSHIP — the SET of calls is "
+                       "author-selected (n≈3–4/guru), so read tiers as directional, "
+                       "not definitive.")
             try:
                 _gi = _gc_gn("guru_intelligence")
                 if not _gi:
@@ -2808,14 +2809,14 @@ with tab_signals:   # <- 2026-07-04 restructure
                     _gi = all_guru_intelligence()
                 _tracks = _gi.get("track_records", {}) or {}
                 for handle, info in _tracks.items():
-                    _hr = info.get("hit_rate_pct", 0) or 0
+                    _hr = info.get("hit_rate_pct")
                     _tier = info.get("tier", "?")
                     _n_scored = info.get("n_calls_scored", 0)
-                    # H1 honesty: a % on <3 curated calls is noise — show the n.
-                    _hr_disp = (f"n={_n_scored} · too few to rate"
-                                if _tier == "INSUFFICIENT"
-                                else f"{_hr:.0f}% hit rate (curated) · {_tier}")
-                    _hr_color = ("#888" if _tier == "INSUFFICIENT"
+                    # objective grading: a % on <3 decisive calls is noise — show n.
+                    _hr_disp = (f"n={_n_scored} decisive · too few to rate"
+                                if _tier == "INSUFFICIENT" or _hr is None
+                                else f"{_hr:.0f}% graded ({_n_scored} decisive) · {_tier}")
+                    _hr_color = ("#888" if (_tier == "INSUFFICIENT" or _hr is None)
                                  else "#22c55e" if _hr >= 75
                                  else "#f0b90b" if _hr >= 50 else "#ef4444")
                     st.markdown(
@@ -2831,8 +2832,9 @@ with tab_signals:   # <- 2026-07-04 restructure
                         f"<div style='font-size:11px; color:#aaa; margin-top:4px;'>"
                         f"{info.get('specialty', '')}</div>"
                         f"<div style='font-size:11px; color:#888; margin-top:4px;'>"
-                        f"{info.get('n_right', 0)}/{info.get('n_calls_scored', 0)} documented calls right · "
-                        f"{len(info.get('pending_calls', []))} pending</div>"
+                        f"{info.get('n_right', 0)}/{info.get('n_calls_scored', 0)} decisive right · "
+                        f"{info.get('n_marginal', 0)} marginal · "
+                        f"{info.get('n_pending', len(info.get('pending_calls', [])))} open</div>"
                         f"</div>",
                         unsafe_allow_html=True,
                     )
