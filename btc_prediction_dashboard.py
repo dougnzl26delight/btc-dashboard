@@ -2247,7 +2247,7 @@ with tab_research:   # <- 2026-07-04 restructure
                             "Actual bottom":    (r.get("actual_bottom", "?") + " ~est" if _est
                                                  else r.get("actual_bottom", "?")),
                             "Bottom price":     f"${r.get('actual_btm_price', 0):,.0f}" + ("*" if _est else ""),
-                            "Days vs bottom":   ("excl." if _est else r.get("days_vs_bottom", 0)),
+                            "Days vs bottom":   ("excl." if _est else str(r.get("days_vs_bottom", 0))),
                             "% from low":       ("excl." if _est else f"{r.get('pct_from_bottom', 0):+.1f}%"),
                         })
                     else:
