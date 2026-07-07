@@ -228,8 +228,8 @@ def etf_aware_bottom_trigger(state: Optional[dict] = None) -> dict:
             "etf_status": etf_status,
             "etf_5d_M": etf_last_5d,
             "etf_30d_M": etf_last_30d,
-            "next_levels": ("Trigger 1A/1B fires when scorecard hits 4/8. "
-                             "Trigger 2 fires at 6/8."),
+            "next_levels": (f"Trigger 1A/1B fires at scorecard >=5/{n_total}; "
+                             f"Trigger 2 (full deploy) at >=7/{n_total}."),
         }
 
     # Default — no actionable signal

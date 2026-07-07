@@ -254,6 +254,20 @@ def bottom_confirmation_scorecard(state: Optional[dict] = None,
         verdict_level = "NO_BOTTOM"
         verdict = f"BOTTOM NOT CONFIRMED ({n_met}/{n_total} criteria met) — pattern projection only."
 
+    # 2026-07-07 logic audit (F5): the theme-breadth overlay computes deploy_action
+    # from cheapness breadth ALONE, so it could say "EARLY — deploy first tranche"
+    # while the hard verdict is NO_BOTTOM ("premature to deploy") — mixed message.
+    # The hard n_met gate is the deploy AUTHORITY: when it says no bottom, breadth
+    # is context (good price), not a deploy instruction.
+    _deploy_action = breadth.get("deploy_action")
+    _deploy_level = breadth.get("deploy_level")
+    if verdict_level == "NO_BOTTOM" and _deploy_level in ("EARLY", "SCALE_IN", "DEPLOY"):
+        _deploy_action = (f"HOLD — {breadth.get('themes_met', 0)}/"
+                          f"{breadth.get('themes_total', 6)} cheapness themes present "
+                          f"but hard bottom NOT confirmed ({n_met}/{n_total}); "
+                          f"breadth is context, not yet a deploy signal")
+        _deploy_level = "HOLD"
+
     return {
         "criteria":      results,
         "n_met":         n_met,
@@ -266,8 +280,9 @@ def bottom_confirmation_scorecard(state: Optional[dict] = None,
         "themes_total":      breadth.get("themes_total"),
         "momentum_met":      breadth.get("momentum_met"),
         "robust_themes_met": breadth.get("robust_themes_met"),
-        "deploy_action":     breadth.get("deploy_action"),
-        "deploy_level":      breadth.get("deploy_level"),
+        "deploy_action":     _deploy_action,
+        "deploy_level":      _deploy_level,
+        "deploy_breadth_raw": breadth.get("deploy_action"),  # ungated breadth read, kept for reference
         "breadth_summary":   breadth.get("summary"),
     }
 

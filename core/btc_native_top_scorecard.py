@@ -514,11 +514,12 @@ def btc_native_top_scorecard() -> dict:
     elif n_met >= 3:   level = "WATCH"
     else:               level = "HOLD"
 
+    _nt = len(criteria)   # F4: denominators track live n_total (16), not stale /10
     verdict_text = {
-        "EXIT_75":      "BTC cycle 5 top confirmed across 9+ signals — exit 75%+ now.",
-        "SCALE_OUT_50": "BTC top confirmed (7+/10). Scale out 50% over 2-4 weeks.",
-        "TRIM_25":      "BTC top forming (5+/10). Trim 25% as initial protection.",
-        "WATCH":        "BTC early top signals (3+/10). Tighten stops, no action yet.",
+        "EXIT_75":      f"BTC cycle-5 top confirmed ({n_met}/{_nt}) — exit 75%+ now.",
+        "SCALE_OUT_50": f"BTC top confirmed (>=9/{_nt}). Scale out 50% over 2-4 weeks.",
+        "TRIM_25":      f"BTC top forming (>=6/{_nt}). Trim 25% as initial protection.",
+        "WATCH":        f"BTC early top signals (>=3/{_nt}). Tighten stops, no action yet.",
         "HOLD":         "BTC bull continues. No top signals firing.",
     }[level]
 

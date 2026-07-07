@@ -85,7 +85,8 @@ HISTORICAL_BOTTOMS = {
         "peak_price":     124_659,
         # Cycle 5 bottom hasn't fully formed yet -- use observed low so far
         "bottom_date":    date(2026, 6, 1),
-        "bottom_price":   58_000,    # estimate; muted cycle
+        "bottom_price":   58_000,    # ESTIMATE (muted cycle) — not a realized low;
+        "bottom_is_estimate": True,  # backtest of cycle 5 is graded vs a guess
         "drawdown_pct":   -53,
     },
 }

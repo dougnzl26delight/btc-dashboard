@@ -2115,6 +2115,17 @@ with tab_research:   # <- 2026-07-04 restructure
             f"<span>{_age_badge('rotation_validation')}</span></div>",
             unsafe_allow_html=True,
         )
+        # 2026-07-07 claim-validity audit (H2): honest framing so this panel
+        # isn't read as statistical proof. The sensitivity test is real; the
+        # "confidence %" is a HEURISTIC index (includes a fixed neutral cycle-6
+        # term), the backtest is n=3 cycles, and cycle 5's "bottom" is an
+        # ESTIMATE ($58k) not a realized low — so the backtest partly grades
+        # against a guess. Treat as a structured sanity check, not an edge proof.
+        st.caption("⚠️ Heuristic sanity check, not a statistical edge proof: "
+                   "backtest n=3 cycles (cycle-5 bottom is an estimate, not "
+                   "realized), the 'confidence %' is a weighted index (not a "
+                   "p-value), and the signal clusters are hand-declared. The "
+                   "±10% sensitivity test is the one genuinely empirical piece.")
 
         # Row 1: 4 headline metric cards
         _v1, _v2, _v3, _v4 = st.columns(4)
@@ -2785,6 +2796,11 @@ with tab_signals:   # <- 2026-07-04 restructure
 
         # === GURU TRACK RECORDS (Anya's ask) ===
         with st.expander("🎙️ Guru track records — how reliable is each source?", expanded=False):
+            st.caption("⚠️ Hand-curated public calls — illustrative and "
+                       "survivorship-prone (calls were logged after outcomes were "
+                       "known), n≈3–4 per guru. NOT a measured track record. The "
+                       "real, forward-graded record is the auto-scored guru/Olson "
+                       "scorecard — this is context, not evidence.")
             try:
                 _gi = _gc_gn("guru_intelligence")
                 if not _gi:
@@ -2794,7 +2810,14 @@ with tab_signals:   # <- 2026-07-04 restructure
                 for handle, info in _tracks.items():
                     _hr = info.get("hit_rate_pct", 0) or 0
                     _tier = info.get("tier", "?")
-                    _hr_color = "#22c55e" if _hr >= 75 else "#f0b90b" if _hr >= 50 else "#ef4444"
+                    _n_scored = info.get("n_calls_scored", 0)
+                    # H1 honesty: a % on <3 curated calls is noise — show the n.
+                    _hr_disp = (f"n={_n_scored} · too few to rate"
+                                if _tier == "INSUFFICIENT"
+                                else f"{_hr:.0f}% hit rate (curated) · {_tier}")
+                    _hr_color = ("#888" if _tier == "INSUFFICIENT"
+                                 else "#22c55e" if _hr >= 75
+                                 else "#f0b90b" if _hr >= 50 else "#ef4444")
                     st.markdown(
                         f"<div style='padding:10px 12px; margin-bottom:8px; "
                         f"background:#13161c; border-radius:6px; "
@@ -2804,7 +2827,7 @@ with tab_signals:   # <- 2026-07-04 restructure
                         f"{info.get('name', handle)} <span style='color:#888; font-size:11px;'>"
                         f"@{handle}</span></span>"
                         f"<span style='font-size:14px; color:{_hr_color}; font-weight:700;'>"
-                        f"{_hr:.0f}% hit rate · {_tier}</span></div>"
+                        f"{_hr_disp}</span></div>"
                         f"<div style='font-size:11px; color:#aaa; margin-top:4px;'>"
                         f"{info.get('specialty', '')}</div>"
                         f"<div style='font-size:11px; color:#888; margin-top:4px;'>"

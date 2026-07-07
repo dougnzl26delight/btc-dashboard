@@ -3,12 +3,15 @@
 Historical pattern (cycles 3, 4, 5):
     PEAK occurs at halving + 535 days (~17.8 months)
         Cycle 3: 526 days   Cycle 4: 546 days   Cycle 5: 534 days
-        Standard deviation: 8 days across 3 cycles
-        Cycle 5 prediction error: ONE day
+        Standard deviation: 8 days across only n=3 cycles — treat the
+        '±8 day' precision as ILLUSTRATIVE, not statistical. The ETF era is
+        a regime break that widens true uncertainty well beyond this; the
+        dashboard hero deliberately shows a wide window, not this point.
 
     BOTTOM occurs at halving + 900 days (~30 months)
         Cycle 3: 889 days   Cycle 4: 912 days
-        Standard deviation: 12 days across 2 cycles
+        Standard deviation: 12 days across only n=2 cycles (a 2-sample std
+        is near-meaningless — the projected bottom is a CENTRE, not a date).
 
     PEAK-TO-BOTTOM duration: 363-366 days (~exactly 1 year)
 
