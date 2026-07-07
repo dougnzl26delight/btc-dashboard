@@ -83,7 +83,13 @@ def _panels() -> dict:
     def _book_truth():
         from core.book_truth import compute
         return compute()
-    _safe("book_truth", _book_truth)
+    # 2026-07-07 signals audit: book_truth reads LOCAL rig state files
+    # (.equity_log.jsonl etc.) that don't exist on the GitHub Action runner —
+    # the Action was overwriting the good locally-computed cache with a
+    # FileNotFoundError 'unavailable' payload every hour. Local-only panel.
+    import os as _os_bt
+    if not _os_bt.getenv("GITHUB_ACTIONS"):
+        _safe("book_truth", _book_truth)
 
     def _unified_decision():
         from core.btc_unified_decision import unified_decision

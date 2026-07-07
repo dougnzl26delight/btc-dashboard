@@ -1301,7 +1301,10 @@ with tab_research:   # back to Guru Panel content
         _rv = _gc("btc_equity_relval") or {}
         _eq = _gc("etf_flow_quality") or {}
         _bd = _gc("bottom_confirmation") or {}
-        _plan = (_gc("rotation_check") or {}).get("deploy_plan") or {}
+        # 2026-07-07 signals audit: rotation_check's writer was removed ~Jun 12
+        # (orphaned panel, 24 days stale) — rotation_trigger is the live panel
+        # carrying the identical deploy_plan, refreshed every precompute cycle.
+        _plan = (_gc("rotation_trigger") or {}).get("deploy_plan") or {}
         if not any([_rg, _rv, _eq, _bd]):
             st.caption("🧭 Guru-grade upgrades — warming up (first precompute cycle)…")
 
