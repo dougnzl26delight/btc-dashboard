@@ -734,6 +734,30 @@ def dca_pace(deploy_pct: int, urgency: str) -> dict:
     }
 
 
+def _bottom_confirmation_cap() -> tuple:
+    """2026-07-07 logic audit (F2): the bottom-confirmation scorecard is the
+    TIMING authority. Macro relative-value says WHERE (equities rich vs BTC);
+    the scorecard says WHEN. Returns (max_deploy_pct, label, n_met, n_total).
+    The rotation tree keys "BTC bottom zone" off price drawdown alone, so at
+    -49% it fired "ROTATE 20%" while the hard scorecard read 2/10 (no bottom).
+    This caps the macro deploy % at what the scorecard actually clears. Fail
+    safe: if confirmation is unavailable, cap to a scout tranche — never full
+    macro deployment on price drawdown alone."""
+    try:
+        from core.dashboard_cache import get_cached
+        bc = get_cached("bottom_confirmation") or {}
+        if not bc:
+            return 15, "UNCONFIRMED (data n/a)", 0, 10
+        n_met = int(bc.get("n_met", 0))
+        n_total = int(bc.get("n_total", 10)) or 10
+        if n_met >= 7:  return 100, "CONFIRMED", n_met, n_total
+        if n_met >= 5:  return 75, "SCALE-IN", n_met, n_total
+        if n_met >= 3:  return 20, "EARLY", n_met, n_total
+        return 0, "NO_BOTTOM", n_met, n_total   # hard gate not met -> hold
+    except Exception:
+        return 15, "UNCONFIRMED (data n/a)", 0, 10
+
+
 def rotation_phase() -> dict:
     """Combine SPY drawdown + BTC drawdown + correlation + liquidity +
     HY spreads + VIX term structure into a rotation phase + Kelly-sized
@@ -841,8 +865,34 @@ def rotation_phase() -> dict:
                       f"liquidity {liq_phase}. Default to 15% rotation pace.")
         action = "ROTATE 15%"
 
+    # ── 2026-07-07 logic audit (F2): BOTTOM-CONFIRMATION GATE ─────────────
+    # Reconciles this panel (which said "BEGIN ROTATION 20%" off a pure price
+    # drawdown proxy) with the 3 scorecard panels that said "far from bottom".
+    # The bottom scorecard is the timing authority and caps how much the macro
+    # case is cleared to actually deploy.
+    _conf_cap, _conf_label, _conf_m, _conf_t = _bottom_confirmation_cap()
+    _gate_active = deploy_pct > _conf_cap
+    if _gate_active:
+        _macro_pct = deploy_pct
+        deploy_pct = _conf_cap
+        if _conf_cap <= 0:
+            action = f"ARMED - HOLD (bottom {_conf_label} {_conf_m}/{_conf_t})"
+        else:
+            action = f"ROTATE {_conf_cap}% (confirmation-gated {_conf_m}/{_conf_t})"
+        rationale = (
+            f"Macro relative-value favours rotation (~{_macro_pct}% on price), "
+            f"BUT the bottom-confirmation scorecard is {_conf_label} "
+            f"({_conf_m}/{_conf_t}) - the timing gate caps deployment at "
+            f"{_conf_cap}%. Macro says WHERE, the scorecard says WHEN; wait for "
+            f"confirmation to build. [macro basis: {rationale}]"
+        )
+
     # Modifiers + confirming signal count
     notes = []
+    if _gate_active:
+        notes.append(f"Deploy % gated by bottom-confirmation scorecard "
+                     f"({_conf_label} {_conf_m}/{_conf_t}) - macro alone does not "
+                     f"time the entry.")
     confirming_signals = 0
     if corr_30 is not None and corr_30 > 0.7:
         notes.append(f"BTC-SPY correlation high ({corr_30:.2f}) — they're moving together")
