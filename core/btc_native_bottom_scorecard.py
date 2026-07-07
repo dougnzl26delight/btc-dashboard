@@ -147,8 +147,30 @@ def nvt_signal_low() -> dict:
     """
     cap = _cm("CapMrktCurUSD", days=400)
     tx_vol = _cm("TxTfrValAdjUSD", days=400)
+    if tx_vol is None:
+        # 2026-07-07 signals audit: TxTfrValAdjUSD (and TxTfrValUSD) left the
+        # CoinMetrics community tier — this criterion read "unavailable"
+        # indefinitely. Free fallback: blockchain.com estimated tx volume
+        # (no key, daily granularity). Same NVT construction, Woo threshold.
+        try:
+            import json as _json, urllib.request as _ur
+            _u = ("https://api.blockchain.info/charts/"
+                  "estimated-transaction-volume-usd?timespan=2years&format=json")
+            with _ur.urlopen(_u, timeout=30) as _r:
+                _vals = _json.loads(_r.read()).get("values", [])
+            if _vals:
+                _idx = pd.to_datetime([v["x"] for v in _vals], unit="s")
+                tx_vol = pd.Series([float(v["y"]) for v in _vals], index=_idx)
+        except Exception:
+            tx_vol = None
     if cap is None or tx_vol is None:
         return {"met": False, "status": "data unavailable"}
+    # normalize both to naive daily dates so concat aligns (CoinMetrics is tz-aware)
+    try:
+        cap.index = pd.to_datetime(cap.index).tz_localize(None).normalize()
+        tx_vol.index = pd.to_datetime(tx_vol.index).tz_localize(None).normalize()
+    except (TypeError, AttributeError):
+        pass
     df = pd.concat([cap, tx_vol], axis=1).dropna()
     if df.empty or len(df) < 90:
         return {"met": False, "status": "insufficient history"}
@@ -275,12 +297,25 @@ def funding_rate_extreme_negative() -> dict:
     Bottoms typically follow within 7-14 days.
     """
     try:
-        from core.btc_premium_free import _funding_rate
-        rate = _funding_rate()
-        if rate is None or rate.get("error"):
+        # 2026-07-07 signals audit: the old helper (btc_premium_free._funding_rate)
+        # no longer exists — this criterion read "unavailable" indefinitely.
+        # Rebuilt on the WORKING multi-venue fetcher (OI-weighted Binance/Bybit/
+        # OKX, bps) + Binance funding history for the 7d average. Free data.
+        from core.btc_clemente_alden import multi_exchange_funding
+        cur = multi_exchange_funding() or {}
+        if cur.get("error") or "agg_funding_bps" not in cur:
             return {"met": False, "status": "funding data unavailable"}
-        recent = rate.get("recent_8h_pct", 0) or 0
-        avg_7d = rate.get("avg_7d_pct", 0) or 0
+        recent = float(cur["agg_funding_bps"]) / 100.0   # bps -> % per 8h
+        avg_7d = recent   # fallback if history fetch fails below
+        try:
+            import ccxt
+            ex = ccxt.binance({"options": {"defaultType": "swap"}})
+            hist = ex.fetch_funding_rate_history("BTC/USDT:USDT", limit=21)
+            rates = [float(h.get("fundingRate") or 0) * 100 for h in hist if h]
+            if rates:
+                avg_7d = sum(rates) / len(rates)
+        except Exception:
+            pass
         met = recent < -0.03 and avg_7d < -0.02
         return {
             "met": bool(met),
