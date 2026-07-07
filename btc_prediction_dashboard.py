@@ -2121,11 +2121,12 @@ with tab_research:   # <- 2026-07-04 restructure
         # term), the backtest is n=3 cycles, and cycle 5's "bottom" is an
         # ESTIMATE ($58k) not a realized low — so the backtest partly grades
         # against a guess. Treat as a structured sanity check, not an edge proof.
-        st.caption("⚠️ Heuristic sanity check, not a statistical edge proof: "
-                   "backtest n=3 cycles (cycle-5 bottom is an estimate, not "
-                   "realized), the 'confidence %' is a weighted index (not a "
-                   "p-value), and the signal clusters are hand-declared. The "
-                   "±10% sensitivity test is the one genuinely empirical piece.")
+        st.caption("Sanity check, not a statistical edge proof (n=3 cycles). "
+                   "2026-07-08 rebuild: the score is now an honest EVIDENCE tally "
+                   "(independent mechanisms firing + trigger-path progress) — the "
+                   "old hardcoded cycle-6 fudge is removed. The backtest averages "
+                   "over 2 REALIZED bottoms only (cycle 5 shown but excluded — its "
+                   "bottom is an estimate). Directional, not a probability.")
 
         # Row 1: 4 headline metric cards
         _v1, _v2, _v3, _v4 = st.columns(4)
@@ -2238,14 +2239,16 @@ with tab_research:   # <- 2026-07-04 restructure
                 rows = []
                 for r in _bt_results:
                     if r.get("would_have_fired"):
+                        _est = r.get("bottom_is_estimate")
                         rows.append({
-                            "Cycle":            f"Cycle {r.get('cycle', '?')}",
+                            "Cycle":            f"Cycle {r.get('cycle', '?')}" + (" (est.)" if _est else ""),
                             "Fire date":        r.get("fire_date", "?"),
                             "Fire price":       f"${r.get('fire_price', 0):,.0f}",
-                            "Actual bottom":    r.get("actual_bottom", "?"),
-                            "Bottom price":     f"${r.get('actual_btm_price', 0):,.0f}",
-                            "Days vs bottom":   r.get("days_vs_bottom", 0),
-                            "% from low":       f"{r.get('pct_from_bottom', 0):+.1f}%",
+                            "Actual bottom":    (r.get("actual_bottom", "?") + " ~est" if _est
+                                                 else r.get("actual_bottom", "?")),
+                            "Bottom price":     f"${r.get('actual_btm_price', 0):,.0f}" + ("*" if _est else ""),
+                            "Days vs bottom":   ("excl." if _est else r.get("days_vs_bottom", 0)),
+                            "% from low":       ("excl." if _est else f"{r.get('pct_from_bottom', 0):+.1f}%"),
                         })
                     else:
                         rows.append({
@@ -2264,9 +2267,10 @@ with tab_research:   # <- 2026-07-04 restructure
                         f"**{abs(int(_bt.get('avg_days_vs_bottom', 0)))} days "
                         f"{'before' if _bt.get('avg_days_vs_bottom', 0) < 0 else 'after'}** "
                         f"the actual bottom, at "
-                        f"**{_bt.get('avg_pct_from_bottom', 0):+.1f}%** from the absolute low. "
-                        f"Note: backtest uses price-only proxies, REAL trigger uses "
-                        f"15-signal scorecard which fires more precisely."
+                        f"**{_bt.get('avg_pct_from_bottom', 0):+.1f}%** from the absolute low "
+                        f"(over {_bt.get('n_fired_realized', _bt.get('n_realized_cycles','?'))} "
+                        f"REALIZED bottoms; cycle 5 excluded — *estimated bottom). "
+                        f"Price-only proxies; the real 15-signal scorecard fires more precisely."
                     )
 
         # Correlation cluster expander

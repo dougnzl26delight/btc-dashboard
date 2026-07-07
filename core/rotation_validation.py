@@ -170,10 +170,12 @@ def historical_backtest() -> dict:
 
             days_early_or_late = (fire_date - bottom_date).days
             pct_from_bottom = (fire_price / bottom_price - 1) * 100
+            _is_est = bool(cyc.get("bottom_is_estimate"))
 
             results.append({
                 "cycle":            cycle_n,
                 "would_have_fired": True,
+                "bottom_is_estimate": _is_est,
                 "fire_date":        fire_date.isoformat(),
                 "fire_price":       round(fire_price, 0),
                 "actual_bottom":    bottom_date.isoformat(),
@@ -189,22 +191,32 @@ def historical_backtest() -> dict:
         except Exception as e:
             results.append({"cycle": cycle_n, "error": str(e)})
 
-    # Aggregate
+    # 2026-07-08 audit H2: aggregate over REALIZED bottoms ONLY. Cycle 5's
+    # "bottom" is an ESTIMATE ($58k, not a realized low), so grading the trigger
+    # against it is circular — its days/%-from-bottom would be measured vs a
+    # guess. It's still shown per-cycle (flagged estimate), just excluded from
+    # the "how early / how close historically" averages.
     fired = [r for r in results if r.get("would_have_fired")]
-    avg_days = (sum(r.get("days_vs_bottom", 0) for r in fired) / len(fired)
-                  if fired else None)
-    avg_pct = (sum(r.get("pct_from_bottom", 0) for r in fired) / len(fired)
-                if fired else None)
+    realized = [r for r in fired if not r.get("bottom_is_estimate")]
+    n_realized_total = sum(1 for c in HISTORICAL_BOTTOMS.values()
+                           if not c.get("bottom_is_estimate"))
+    avg_days = (sum(r.get("days_vs_bottom", 0) for r in realized) / len(realized)
+                  if realized else None)
+    avg_pct = (sum(r.get("pct_from_bottom", 0) for r in realized) / len(realized)
+                if realized else None)
 
     return {
         "results":       results,
         "n_cycles":      len(HISTORICAL_BOTTOMS),
+        "n_realized_cycles": n_realized_total,   # bottoms that actually happened
         "n_fired":       len(fired),
+        "n_fired_realized": len(realized),
         "avg_days_vs_bottom": round(avg_days, 0) if avg_days is not None else None,
         "avg_pct_from_bottom": round(avg_pct, 1) if avg_pct is not None else None,
-        "note":           ("Backtest uses price-only proxies. Real 15-signal scorecard "
-                            "fires EARLIER than these proxies — these are conservative "
-                            "lower-bound estimates."),
+        "note":           (f"Price-only proxies (conservative — the 15-signal "
+                            f"scorecard fires earlier). Averages are over {len(realized)} "
+                            f"REALIZED bottoms only (n={n_realized_total}); cycle 5 is "
+                            f"shown but EXCLUDED — its bottom is an estimate, not a low."),
     }
 
 
@@ -370,59 +382,76 @@ def threshold_sensitivity() -> dict:
 # 4) CONFIDENCE SCORE — independent signals firing
 # =================================================================
 def confidence_score() -> dict:
-    """Compute 0-100% confidence based on INDEPENDENT firing signals."""
+    """EVIDENCE-STRENGTH tally — NOT a statistical confidence/probability.
+
+    2026-07-08 rebuild (claim-validity audit H2): removed the hardcoded
+    `cycle6_factor = 0.5` that silently injected a flat 10% floor into every
+    reading (0.20 weight x 0.5). The score is now a transparent tally of the
+    TWO MEASURED inputs only:
+      (a) how far the rotation-trigger paths have advanced toward firing, and
+      (b) how many INDEPENDENT bottom-mechanisms are firing — using the
+          F3-fixed dedup (16 raw signals collapse to ~5 real mechanisms, so
+          correlated valuation ratios count once, not many times).
+    Independent-mechanism breadth is the stronger evidence, so it carries more
+    weight. No hidden constant term. This is an evidence tally over n=3 cycles:
+    read it as directional strength, not a probability of a bottom.
+    """
     from core.dashboard_cache import get_cached
 
-    # Pull from the rotation trigger result
     rt = get_cached("rotation_trigger") or {}
-    overall = rt.get("overall", "ARMED")
-    best_score = rt.get("best_score", 0) or 0
     paths = rt.get("paths", []) or []
 
-    # Pull correlation cluster info
     corr = signal_correlation()
-    effective_pct = corr.get("effective_pct", 0) or 0
     clusters_firing_str = corr.get("clusters_firing", "0/5") or "0/5"
     n_clusters_firing = int(clusters_firing_str.split("/")[0]) if "/" in clusters_firing_str else 0
     n_clusters_total = int(clusters_firing_str.split("/")[1]) if "/" in clusters_firing_str else 5
+    n_other = corr.get("n_other_firing", 0) or 0
 
-    # Confidence formula:
-    #   30% weight: how many trigger paths approaching 2/2
-    #   50% weight: how many INDEPENDENT signal clusters firing
-    #   20% weight: cycle-6 modifier suggests we're past muted-bottom threshold
-    paths_factor = sum(int(p.get("score", "0/2").split("/")[0]) for p in paths) / (2 * len(paths)) if paths else 0
+    # Robust per-path parse: score is "X/Y" (real denominator), but live paths
+    # can carry an unfilled template like "n/4" — skip those, don't assume /2.
+    def _path_frac(pth):
+        sc = str(pth.get("score", "")).strip()
+        if "/" not in sc:
+            return None
+        a, b = sc.split("/", 1)
+        try:
+            a = int(a); b = int(b)
+        except ValueError:
+            return None
+        return (a / b) if b else None
+    _pf = [f for f in (_path_frac(p) for p in paths) if f is not None]
+    paths_factor = (sum(_pf) / len(_pf)) if _pf else 0
     cluster_factor = n_clusters_firing / n_clusters_total if n_clusters_total else 0
-    # Cycle-6 modifier (placeholder — refined below in cycle6_modifier)
-    cycle6_factor = 0.5  # neutral default
 
-    raw = (
-        0.30 * paths_factor +
-        0.50 * cluster_factor +
-        0.20 * cycle6_factor
-    )
-    confidence_pct = round(raw * 100, 0)
+    # Two real inputs only; mechanism breadth weighted higher. No cycle-6 fudge.
+    raw = 0.35 * paths_factor + 0.65 * cluster_factor
+    strength_pct = round(raw * 100, 0)
 
-    # Tier label
-    if confidence_pct >= 75:
-        tier = "HIGH"
-    elif confidence_pct >= 50:
+    # Honest tiers for an EVIDENCE tally (not confidence).
+    if strength_pct >= 66:
+        tier = "STRONG"
+    elif strength_pct >= 33:
         tier = "MODERATE"
-    elif confidence_pct >= 25:
-        tier = "BUILDING"
     else:
-        tier = "LOW"
+        tier = "WEAK"
 
     return {
-        "confidence_pct":  confidence_pct,
+        "confidence_pct":  strength_pct,   # key kept for UI back-compat
+        "evidence_pct":    strength_pct,
         "tier":            tier,
+        "is_probability":  False,
         "factors": {
             "paths_factor":    round(paths_factor * 100, 0),
             "cluster_factor":  round(cluster_factor * 100, 0),
-            "cycle6_factor":   round(cycle6_factor * 100, 0),
         },
-        "interpretation":  (f"{confidence_pct:.0f}% confidence ({tier}). "
-                              f"{n_clusters_firing} of {n_clusters_total} independent "
-                              f"signal clusters firing."),
+        "basis": (f"{n_clusters_firing}/{n_clusters_total} independent "
+                  f"bottom-mechanisms firing"
+                  + (f" (+{n_other} unclustered)" if n_other else "")),
+        "interpretation":  (f"Evidence strength {strength_pct:.0f}% ({tier}) — "
+                              f"{n_clusters_firing} of {n_clusters_total} INDEPENDENT "
+                              f"bottom-mechanisms firing, trigger paths at "
+                              f"{paths_factor*100:.0f}%. A tally of measured signals, "
+                              f"NOT a probability (n=3 cycles; no hidden constant)."),
     }
 
 
