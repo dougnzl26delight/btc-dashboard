@@ -85,3 +85,4 @@ bin/
 !.panel_cache/
 !.panel_cache/**
 !.simpleton_daily_brief.json
+.gate_state.json

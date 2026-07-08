@@ -759,12 +759,17 @@ def _bottom_confirmation_cap() -> tuple:
         if n_firm_mech is None:
             n_firm_mech = bc.get("n_firm", bc.get("n_met", 0))
         n_firm_mech = int(n_firm_mech)
-        n_total_mech = int(bc.get("n_mechanisms_met", 8)) or 8
-        # ladder on distinct firm mechanisms (8 mechanisms total)
-        if n_firm_mech >= 6:  return 100, "CONFIRMED", n_firm_mech, 8
-        if n_firm_mech >= 4:  return 60, "SCALE-IN", n_firm_mech, 8
-        if n_firm_mech >= 3:  return 20, "EARLY", n_firm_mech, 8
-        return 0, "NOT-CONFIRMED", n_firm_mech, 8   # <3 firm mechanisms -> hold
+        # 2026-07-08 bulletproof: prefer the DEBOUNCED gate_level (a level change
+        # must persist GATE_PERSIST_DAYS before it's accepted) so deployment
+        # can't move on a single-day threshold nick. Fall back to the
+        # instantaneous firm-mechanism ladder for older caches without the field.
+        _lvl = bc.get("gate_level")
+        if not _lvl:
+            _lvl = ("CONFIRMED" if n_firm_mech >= 6 else "SCALE_IN" if n_firm_mech >= 4
+                    else "EARLY" if n_firm_mech >= 3 else "NOT_CONFIRMED")
+        _cap = {"CONFIRMED": 100, "SCALE_IN": 60, "EARLY": 20, "NOT_CONFIRMED": 0}.get(_lvl, 0)
+        _pend = " (change pending, not yet debounced)" if bc.get("gate_pending") else ""
+        return _cap, _lvl.replace("_", "-") + _pend, n_firm_mech, 8
     except Exception:
         return 15, "UNCONFIRMED (data n/a)", 0, 10
 

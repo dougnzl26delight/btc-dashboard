@@ -19,6 +19,67 @@ from __future__ import annotations
 
 from typing import Optional
 
+import json
+from datetime import datetime, timezone
+from pathlib import Path
+
+# ── 2026-07-08 bulletproof gate: persistence debounce ────────────────────────
+# The raw firm-mechanism count can still nick a threshold for a single day
+# (BTC daily vol ~2-3%). To stop the CONFIRMED gate level flickering, a level
+# change must PERSIST for GATE_PERSIST_DAYS distinct calendar days before it's
+# accepted. State is local runtime (.gate_state.json, gitignored); the accepted
+# level rides to the cloud inside the bottom_confirmation panel cache. Fully
+# fail-safe: any error -> fall back to the raw level, never crash the scorecard.
+_GATE_STATE = Path(__file__).resolve().parent.parent / ".gate_state.json"
+GATE_PERSIST_DAYS = 2
+
+
+def _level_from_mech(n_mech_firm: int) -> str:
+    if n_mech_firm >= 6: return "CONFIRMED"
+    if n_mech_firm >= 4: return "SCALE_IN"
+    if n_mech_firm >= 3: return "EARLY"
+    return "NOT_CONFIRMED"
+
+
+def _gate_debounce(n_mech_firm: int) -> dict:
+    """Return the DEBOUNCED gate level. A new level must hold GATE_PERSIST_DAYS
+    distinct days before it's accepted; otherwise the last confirmed level
+    holds and the pending change is reported. Stateless-safe on any failure."""
+    raw = _level_from_mech(n_mech_firm)
+    try:
+        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        st = {}
+        if _GATE_STATE.exists():
+            st = json.loads(_GATE_STATE.read_text()) or {}
+        hist = [h for h in st.get("history", []) if h.get("date") != today]
+        hist.append({"date": today, "mech_firm": int(n_mech_firm), "level": raw})
+        hist = sorted(hist, key=lambda h: h.get("date", ""))[-14:]
+
+        confirmed = st.get("confirmed_level", raw)
+        since = st.get("confirmed_since", today)
+        pending = False
+        days_at_raw = 0
+        if raw != confirmed:
+            for h in reversed(hist):              # trailing run of days at `raw`
+                if h.get("level") == raw: days_at_raw += 1
+                else: break
+            if days_at_raw >= GATE_PERSIST_DAYS:
+                confirmed, since, pending = raw, today, False
+            else:
+                pending = True                    # building, not yet accepted
+        _GATE_STATE.write_text(json.dumps({
+            "confirmed_level": confirmed, "confirmed_since": since,
+            "history": hist,
+        }, indent=1))
+        return {"confirmed_level": confirmed, "raw_level": raw,
+                "pending_change": pending, "days_at_raw": days_at_raw,
+                "confirmed_since": since}
+    except Exception as e:
+        return {"confirmed_level": raw, "raw_level": raw,
+                "pending_change": False, "days_at_raw": 0, "error": str(e)[:60]}
+
+
+
 
 # ============================================================
 # Hard criteria for an ACTUAL cycle bottom
@@ -267,6 +328,7 @@ def bottom_confirmation_scorecard(state: Optional[dict] = None,
     # NOTE: does a yfinance weekly call (price-turn) — skipped on the hot render
     # path via compute_breadth=False; precompute computes it for the guru panel.
     breadth = {}
+    gate = {}
     if compute_breadth:
         try:
             from core.btc_signal_themes import theme_breadth
@@ -274,6 +336,9 @@ def bottom_confirmation_scorecard(state: Optional[dict] = None,
             breadth = theme_breadth(results, extra_met=_extra)
         except Exception:
             breadth = {}
+        # 2026-07-08 bulletproof gate: debounce the firm-mechanism level so a
+        # single-day threshold nick can't move the confirmed gate (persist path).
+        gate = _gate_debounce(n_mech_firm)
 
     # Updated thresholds for 10-criterion scorecard (was 8)
     if n_met >= 7:
@@ -311,6 +376,12 @@ def bottom_confirmation_scorecard(state: Optional[dict] = None,
         "n_total":       n_total,
         "n_mechanisms_met":  n_mech_met,  # distinct underlying mechanisms (dedup'd)
         "n_mechanisms_firm": n_mech_firm, # distinct mechanisms firmly met -> the honest count
+        # bulletproof gate: debounced level (persists GATE_PERSIST_DAYS before a
+        # change is accepted). The capital gate reads gate_level, not the raw count.
+        "gate_level":        gate.get("confirmed_level"),
+        "gate_raw_level":    gate.get("raw_level"),
+        "gate_pending":      gate.get("pending_change", False),
+        "gate_days_at_raw":  gate.get("days_at_raw", 0),
         "verdict":       verdict,
         "verdict_level": verdict_level,
         # theme-breadth overlay (orthogonal-theme confirmation; momentum mandatory)
