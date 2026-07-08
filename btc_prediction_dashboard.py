@@ -1340,9 +1340,17 @@ with tab_research:   # back to Guru Panel content
             f"<span style='font-size:15px; font-weight:800; color:{_dlcol};'>{html.escape(str(_bd.get('deploy_action','?')))}</span></div>"
             f"<div style='margin-top:8px;'>{_chips}</div>"
             f"<div style='font-size:11px; color:#999; margin-top:6px;'>{html.escape(str(_bd.get('breadth_summary','')))} "
-            f"&middot; full deploy needs <b>4/6 themes + a price-turn</b> — raw "
-            f"{_bd.get('n_met','?')}/{_bd.get('n_total','?')} criteria over-counts correlated signals "
-            f"(3 miner, 2 cost-basis).</div></div>",
+            f"&middot; full deploy needs <b>4/6 themes + a price-turn</b>.</div>"
+            # 2026-07-08 gate audit: show met vs FIRM vs mechanisms so a fragile
+            # threshold-nick reading (e.g. 5/10 where 2 are hair-over-the-line and
+            # the premium/hashrate pairs double-count) is transparent.
+            f"<div style='font-size:11px; color:#c9a227; margin-top:6px;'>"
+            f"Raw <b>{_bd.get('n_met','?')}/{_bd.get('n_total','?')}</b> met, but only "
+            f"<b>{_bd.get('n_firm','?')} firm</b> ({_bd.get('n_marginal',0)} marginal, within "
+            f"threshold buffer) &middot; <b>{_bd.get('n_mechanisms_firm','?')}/"
+            f"{_bd.get('n_mechanisms_met','?')}</b> firm INDEPENDENT mechanisms — the "
+            f"capital gate keys off firm mechanisms, so it won't flicker on daily BTC noise."
+            f"</div></div>",
             unsafe_allow_html=True)
 
         if _plan:

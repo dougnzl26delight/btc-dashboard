@@ -747,13 +747,24 @@ def _bottom_confirmation_cap() -> tuple:
         from core.dashboard_cache import get_cached
         bc = get_cached("bottom_confirmation") or {}
         if not bc:
-            return 15, "UNCONFIRMED (data n/a)", 0, 10
-        n_met = int(bc.get("n_met", 0))
-        n_total = int(bc.get("n_total", 10)) or 10
-        if n_met >= 7:  return 100, "CONFIRMED", n_met, n_total
-        if n_met >= 5:  return 75, "SCALE-IN", n_met, n_total
-        if n_met >= 3:  return 20, "EARLY", n_met, n_total
-        return 0, "NO_BOTTOM", n_met, n_total   # hard gate not met -> hold
+            return 15, "UNCONFIRMED (data n/a)", 0, 8
+        # 2026-07-08 gate audit: cap on FIRM independent MECHANISMS, not the raw
+        # met count. The raw count flickers on daily BTC noise (a -50.19% price
+        # or -1.01 MVRV 'meets' but a +0.5% day un-meets) and double-counts the
+        # 2 hashrate + 2 premium criteria. n_mechanisms_firm excludes both, so
+        # capital deployment only unlocks on decisive, broad confirmation and
+        # won't whipsaw. Falls back to n_firm, then n_met, if an older cache
+        # lacks the field.
+        n_firm_mech = bc.get("n_mechanisms_firm")
+        if n_firm_mech is None:
+            n_firm_mech = bc.get("n_firm", bc.get("n_met", 0))
+        n_firm_mech = int(n_firm_mech)
+        n_total_mech = int(bc.get("n_mechanisms_met", 8)) or 8
+        # ladder on distinct firm mechanisms (8 mechanisms total)
+        if n_firm_mech >= 6:  return 100, "CONFIRMED", n_firm_mech, 8
+        if n_firm_mech >= 4:  return 60, "SCALE-IN", n_firm_mech, 8
+        if n_firm_mech >= 3:  return 20, "EARLY", n_firm_mech, 8
+        return 0, "NOT-CONFIRMED", n_firm_mech, 8   # <3 firm mechanisms -> hold
     except Exception:
         return 15, "UNCONFIRMED (data n/a)", 0, 10
 
@@ -876,9 +887,9 @@ def rotation_phase() -> dict:
         _macro_pct = deploy_pct
         deploy_pct = _conf_cap
         if _conf_cap <= 0:
-            action = f"ARMED - HOLD (bottom {_conf_label} {_conf_m}/{_conf_t})"
+            action = f"ARMED - HOLD ({_conf_m}/{_conf_t} firm mechanisms; {_conf_label})"
         else:
-            action = f"ROTATE {_conf_cap}% (confirmation-gated {_conf_m}/{_conf_t})"
+            action = f"ROTATE {_conf_cap}% (gated: {_conf_m}/{_conf_t} firm mechanisms)"
         rationale = (
             f"Macro relative-value favours rotation (~{_macro_pct}% on price), "
             f"BUT the bottom-confirmation scorecard is {_conf_label} "

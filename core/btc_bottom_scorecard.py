@@ -7,8 +7,12 @@ even though hard confirmation signals (Realized Cap drawdown, MVRV-Z deep
 value, Coinbase Premium positive, hashrate ribbon cross-up) have not.
 
 This module produces a no-soft-bullshit scorecard: how many HARD criteria are
-actually met right now? An actual cycle bottom historically requires 6 of 8
-of these. Anything less is "not confirmed" — pattern projection only.
+actually met right now? An actual cycle bottom historically requires most of these. The tier ladder
+(2026: 10 criteria) is 3=EARLY, 5=BOTTOM_FORMING, 7=BOTTOM_IN. NOTE the
+gate now also reports n_firm / n_mechanisms_firm — the count that EXCLUDES
+hair-over-the-line criteria and dedups the 2 hashrate + 2 premium pairs.
+Capital deployment keys off firm mechanisms, not the raw met count, so the
+deploy gate does not flicker on daily BTC noise.
 """
 
 from __future__ import annotations
@@ -21,57 +25,47 @@ from typing import Optional
 # ============================================================
 
 CRITERIA_DEFS = [
-    {"id": "price_drawdown",
+    {"id": "price_drawdown", "mechanism": "price", "firm_buffer": 1.0,
      "label": "Price -50% or worse from ATH",
      "rationale": "Historical median cycle drawdown -50% to -85%",
-     "threshold": -50.0,
-     "comparator": "less_than"},
-    {"id": "realized_cap_drawdown",
+     "threshold": -50.0, "comparator": "less_than"},
+    {"id": "realized_cap_drawdown", "mechanism": "realized_cap", "firm_buffer": 1.5,
      "label": "Realized Cap drawdown -15% or worse",
      "rationale": "Checkmate's #1 bottom indicator — coins recapitulated at loss",
-     "threshold": -15.0,
-     "comparator": "less_than"},
-    {"id": "mvrv_z",
+     "threshold": -15.0, "comparator": "less_than"},
+    {"id": "mvrv_z", "mechanism": "mvrv", "firm_buffer": 0.1,
      "label": "MVRV Z-Score below -1.0",
      "rationale": "Deep value zone — coins trading below realized price avg",
-     "threshold": -1.0,
-     "comparator": "less_than"},
-    {"id": "coinbase_premium",
+     "threshold": -1.0, "comparator": "less_than"},
+    {"id": "coinbase_premium", "mechanism": "cb_premium", "firm_buffer": 0.15,
      "label": "Coinbase Premium positive",
      "rationale": "US institutional buying confirmed",
-     "threshold": 0.0,
-     "comparator": "greater_than"},
-    {"id": "hashrate_ribbon",
+     "threshold": 0.0, "comparator": "greater_than"},
+    {"id": "hashrate_ribbon", "mechanism": "hashrate",
      "label": "Hashrate Ribbon cross-up",
      "rationale": "Woo's signal — miner capitulation done, recovery confirmed",
-     "threshold": None,
-     "comparator": "ribbon_cross_up"},
-    {"id": "halving_day",
+     "threshold": None, "comparator": "ribbon_cross_up"},
+    {"id": "halving_day", "mechanism": "cycle_time", "firm_buffer": 5,
      "label": "Days post-halving between 850-920",
      "rationale": "Historical bottom window (cycle 3: 889d, cycle 4: 912d)",
-     "threshold": (850, 920),
-     "comparator": "in_range"},
-    {"id": "puell_multiple",
+     "threshold": (850, 920), "comparator": "in_range"},
+    {"id": "puell_multiple", "mechanism": "miner_rev", "firm_buffer": 0.05,
      "label": "Puell Multiple below 0.5",
      "rationale": "Miner revenue capitulation",
-     "threshold": 0.5,
-     "comparator": "less_than"},
-    {"id": "sth_mvrv_reclaim",
+     "threshold": 0.5, "comparator": "less_than"},
+    {"id": "sth_mvrv_reclaim", "mechanism": "sth_mvrv",
      "label": "STH-MVRV reclaim of 1.0 (after extended below)",
      "rationale": "Short-term holders back in profit = recovery confirmed",
-     "threshold": 1.0,
-     "comparator": "reclaim"},
+     "threshold": 1.0, "comparator": "reclaim"},
     # === Added 2026-06-03 from Clemente+Alden review ===
-    {"id": "hashrate_drawdown",
+    {"id": "hashrate_drawdown", "mechanism": "hashrate", "firm_buffer": 2.0,
      "label": "Hashrate drawdown -25% or worse from 365d peak",
      "rationale": "Miner capitulation — every prior bottom required this",
-     "threshold": -25.0,
-     "comparator": "less_than"},
-    {"id": "cb_premium_streak",
+     "threshold": -25.0, "comparator": "less_than"},
+    {"id": "cb_premium_streak", "mechanism": "cb_premium", "firm_buffer": 3,
      "label": "Coinbase Premium negative streak 21+ days",
      "rationale": "Clemente's 2024 bottom signal — fired within a week of low",
-     "threshold": 21,
-     "comparator": "greater_than"},
+     "threshold": 21, "comparator": "greater_than"},
 ]
 
 
@@ -107,6 +101,35 @@ def _check_criterion(crit: dict, value, extra: Optional[dict] = None) -> tuple[b
         status += "extended below" if extended else "no extended period below"
         return met, status
     return False, "unknown comparator"
+
+
+def _criterion_firm(crit: dict, value, met: bool) -> tuple:
+    """2026-07-08 gate audit: is a MET criterion firmly met, or a hair over the
+    line? Returns (is_firm, is_marginal, margin). Prevents the capital gate
+    flickering on daily BTC noise: e.g. price -50.19% (threshold -50) or MVRV
+    -1.01 (threshold -1.0) are 'met' but a +0.5% BTC day un-fires them. A
+    criterion only counts toward the deploy-unlock when it clears its threshold
+    by `firm_buffer`. Non-numeric comparators (ribbon/reclaim) are firm if met.
+    """
+    if not met:
+        return False, False, None
+    cmp_type = crit.get("comparator")
+    buf = crit.get("firm_buffer")
+    th = crit.get("threshold")
+    try:
+        if cmp_type == "less_than" and buf is not None:
+            margin = th - value                 # how far below threshold
+            return (margin >= buf), (margin < buf), round(margin, 3)
+        if cmp_type == "greater_than" and buf is not None:
+            margin = value - th
+            return (margin >= buf), (margin < buf), round(margin, 3)
+        if cmp_type == "in_range" and buf is not None:
+            lo, hi = th
+            margin = min(value - lo, hi - value)
+            return (margin >= buf), (margin < buf), round(margin, 3)
+    except (TypeError, ValueError):
+        pass
+    return True, False, None   # boolean/structural criteria: firm when met
 
 
 # ── injected theme inputs (momentum + derivatives) the 10 criteria lack ──────
@@ -214,17 +237,29 @@ def bottom_confirmation_scorecard(state: Optional[dict] = None,
     for crit in CRITERIA_DEFS:
         val, extra = value_map.get(crit["id"], (None, None))
         met, status = _check_criterion(crit, val, extra)
+        firm, marginal, margin = _criterion_firm(crit, val, bool(met))
         results.append({
             "id":         crit["id"],
             "label":      crit["label"],
             "rationale":  crit["rationale"],
+            "mechanism":  crit.get("mechanism", crit["id"]),
             "value":      val,
             "met":        bool(met),
-            "status":     status,
+            "firm":       bool(firm),
+            "marginal":   bool(marginal),
+            "margin":     margin,
+            "status":     status + ("  [MARGINAL — within threshold buffer]" if marginal else ""),
         })
 
     n_met = sum(1 for r in results if r["met"])
+    n_firm = sum(1 for r in results if r["firm"])
+    n_marginal = sum(1 for r in results if r["marginal"])
     n_total = len(results)
+    # distinct underlying mechanisms (dedups the 2 hashrate + 2 premium pairs)
+    mechs_met = {r["mechanism"] for r in results if r["met"]}
+    mechs_firm = {r["mechanism"] for r in results if r["firm"]}
+    n_mech_met = len(mechs_met)
+    n_mech_firm = len(mechs_firm)
 
     # ── Theme-breadth overlay: orthogonal-theme confirmation (the real gate) ──
     # Raw count over-credits correlated criteria (3 miner, 2 cost-basis, 2 flow).
@@ -271,7 +306,11 @@ def bottom_confirmation_scorecard(state: Optional[dict] = None,
     return {
         "criteria":      results,
         "n_met":         n_met,
+        "n_firm":        n_firm,          # met AND decisively past threshold
+        "n_marginal":    n_marginal,      # met but within the threshold buffer (fragile)
         "n_total":       n_total,
+        "n_mechanisms_met":  n_mech_met,  # distinct underlying mechanisms (dedup'd)
+        "n_mechanisms_firm": n_mech_firm, # distinct mechanisms firmly met -> the honest count
         "verdict":       verdict,
         "verdict_level": verdict_level,
         # theme-breadth overlay (orthogonal-theme confirmation; momentum mandatory)
