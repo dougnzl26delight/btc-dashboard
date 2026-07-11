@@ -1,13 +1,14 @@
 {
-  "generated_local": "2026-07-12T09:40:04.851169+12:00",
+  "generated_local": "2026-07-12T10:24:33.488269+12:00",
   "date": "2026-07-12",
   "date_friendly": "Sun 12 Jul 2026",
-  "summary": "1 thing changed in the last 24 hours.",
+  "summary": "2 things changed in the last 24 hours.",
   "lines": [
-    "\u20bf Bitcoin was roughly flat over the last 24 hours, around **$64,318**.",
-    "\ud83d\udcc9 Stocks look **calmer**: 2/10 'toppy' signs now (was 3)."
+    "\u20bf Bitcoin was roughly flat over the last 24 hours, around **$64,243**.",
+    "\ud83d\udcc9 Stocks look **calmer**: 2/10 'toppy' signs now (was 3).",
+    "\ud83c\udf10 The market backdrop shifted from **LATE_CYCLE** to **RISK_ON**."
   ],
-  "btc_24h_pct": 0.2980047250356716,
+  "btc_24h_pct": 0.1816721636141064,
   "first": false,
   "plan": "WAITING"
 }
