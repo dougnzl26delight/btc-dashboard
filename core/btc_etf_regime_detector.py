@@ -91,6 +91,25 @@ def classify_regime() -> dict:
     """Classify current ETF flow regime."""
     df = _etf_flows_history()
     if df is None or df.empty:
+        # 2026-07-09 hardening: transient Farside fetch failures kept poisoning
+        # the panel cache with zeros ("ETF flat" on the verdict card twice in a
+        # week while the live feed was STRONG_INFLOW). Fall back to the LAST
+        # GOOD cached read, clearly marked stale, instead of zeroing the card.
+        try:
+            import pickle as _pkl
+            from pathlib import Path as _P
+            _pc = _P(__file__).resolve().parent.parent / ".panel_cache" / "etf_regime.pkl"
+            if _pc.exists():
+                _prev = _pkl.load(open(_pc, "rb"))
+                _prev = _prev[1] if isinstance(_prev, tuple) else _prev
+                if isinstance(_prev, dict) and _prev.get("regime") not in (None, "DATA_UNAVAILABLE"):
+                    _prev = dict(_prev)
+                    _prev["stale"] = True
+                    _prev["status"] = ("STALE (fetch failed; showing last good read) — "
+                                       + str(_prev.get("status", "")))[:160]
+                    return _prev
+        except Exception:
+            pass
         return {
             "regime": "DATA_UNAVAILABLE",
             "status": "ETF flow data not available",
