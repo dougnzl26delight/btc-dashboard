@@ -72,11 +72,14 @@ def _disk_cache_path(url: str) -> Path:
     return _DISK_CACHE_DIR / f"{key}.txt"
 
 
-def _http_get(url: str, ttl: int = 3600) -> Optional[str]:
+def _http_get(url: str, ttl: int = 3600,
+              headers: Optional[dict] = None) -> Optional[str]:
     """HTTP GET with in-memory + disk cache.
 
     Returns cached body if fresh; on network failure, returns stale disk
     cached body (any age) as fallback so dashboard never goes blank.
+    `headers` merges over the default browser _UA (2026-07-09: FRED's bot
+    shield resets fake-browser UAs, so the FRED caller overrides User-Agent).
     """
     key = url
     now = time.time()
@@ -96,7 +99,7 @@ def _http_get(url: str, ttl: int = 3600) -> Optional[str]:
         except Exception: pass
     # Live fetch
     try:
-        r = requests.get(url, headers=_UA, timeout=_HTTP_TIMEOUT)
+        r = requests.get(url, headers={**_UA, **(headers or {})}, timeout=_HTTP_TIMEOUT)
         if r.status_code == 200:
             _HTTP_CACHE[key] = (now, r.text)
             try:
@@ -154,7 +157,13 @@ def _fred_csv(series: str, days: int = 365) -> Optional[pd.DataFrame]:
         mark_fred_down = lambda: None  # noqa
         mark_fred_up = lambda: None  # noqa
     try:
-        body = _http_get(url, ttl=86400)
+        # 2026-07-09 sense-check audit: FRED's bot-protection RESETS connections
+        # presenting the repo's fake-Chrome UA (no matching TLS fingerprint),
+        # while honest client UAs get HTTP 200. This silent failure pushed the
+        # HY criterion onto the units-corrupted HYG/TLT fallback for days.
+        # Override the UA (dict-merge in _http_get lets headers win).
+        body = _http_get(url, ttl=86400,
+                         headers={"User-Agent": "python-requests fred-csv (quant dashboard)"})
         if not body:
             mark_fred_down()
             return None

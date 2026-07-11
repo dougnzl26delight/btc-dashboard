@@ -33,7 +33,10 @@ CRITERIA_DEFS = [
      "threshold": -5.0,
      "comparator": "less_than"},
     {"id": "vix_complacency",
-     "label": "VIX term ratio < 0.85 (extreme complacency)",
+     # 2026-07-09 sense-check: value IS VIX9D/VIX3M (front-end vs 3m), which
+     # runs structurally lower than the classic VIX/VIX3M this threshold was
+     # named for — label now says which ratio, so 0.65 reads correctly.
+     "label": "VIX9D/VIX3M < 0.85 (extreme complacency)",
      "rationale": "Druckenmiller's signal — complacency extreme precedes major tops",
      "threshold": 0.85,
      "comparator": "less_than"},
@@ -121,8 +124,13 @@ def top_confirmation_scorecard(state: Optional[dict] = None) -> dict:
     vix_t = rot.get("vix_term_structure", {})
     vix_ratio = vix_t.get("term_ratio") if vix_t and not vix_t.get("error") else None
     hy = rot.get("hy_credit_spreads", {})
-    # The producer emits chg_30d_pct; older code looked for chg_30d_pp -> dark.
-    hy_chg_30d = (hy.get("chg_30d_pp", hy.get("chg_30d_pct"))
+    # 2026-07-09 sense-check audit: accept ONLY chg_30d_pp (true spread
+    # percentage-points, FRED primary). The old chg_30d_pct fallback was the
+    # HYG/TLT price-RATIO change — different units AND inverted sign (a rising
+    # ratio = spreads COMPRESSING), so "+1.06% ratio (bullish)" was read as
+    # "+106bps widening (bearish)" and false-fired the TRIM criterion. If the
+    # primary is down, the criterion honestly reads data-unavailable.
+    hy_chg_30d = (hy.get("chg_30d_pp")
                   if hy and not hy.get("error") else None)
     yc = rot.get("yield_curve", {})
     yc_phase = yc.get("phase") if yc and not yc.get("error") else None

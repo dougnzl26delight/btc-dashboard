@@ -98,10 +98,14 @@ CRITERIA_DEFS = [
      "label": "MVRV Z-Score below -1.0",
      "rationale": "Deep value zone — coins trading below realized price avg",
      "threshold": -1.0, "comparator": "less_than"},
-    {"id": "coinbase_premium", "mechanism": "cb_premium", "firm_buffer": 0.15,
-     "label": "Coinbase Premium positive",
+    {"id": "coinbase_premium", "mechanism": "cb_premium", "firm_buffer": 5.0,
+     # 2026-07-09 sense-check audit: value is in BASIS POINTS and oscillates
+     # around zero (+0.8bps at audit time = coin-flip noise). ">0.0" fired on
+     # any microscopic tick. Now requires a MEANINGFUL premium: met > +5bps,
+     # firm > +10bps.
+     "label": "Coinbase Premium > +5bps (meaningful US bid)",
      "rationale": "US institutional buying confirmed",
-     "threshold": 0.0, "comparator": "greater_than"},
+     "threshold": 5.0, "comparator": "greater_than"},
     {"id": "hashrate_ribbon", "mechanism": "hashrate",
      "label": "Hashrate Ribbon cross-up",
      "rationale": "Woo's signal — miner capitulation done, recovery confirmed",
