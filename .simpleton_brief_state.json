@@ -512,7 +512,7 @@
     },
     {
       "date": "2026-07-15",
-      "price": 64542.1,
+      "price": 64743.7,
       "cheap": "cheap",
       "cycle_buy": 5,
       "cycle_total": 7,
@@ -521,7 +521,7 @@
       "stocks_n": 2,
       "stocks_total": 10,
       "qqq_tier": "SAFE",
-      "semis_tier": "WEAKENING",
+      "semis_tier": "BREAKDOWN",
       "plan": "WAITING",
       "regime": "RISK_ON"
     }
