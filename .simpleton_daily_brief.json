@@ -1,13 +1,13 @@
 {
-  "generated_local": "2026-07-18T08:24:44.214594+12:00",
+  "generated_local": "2026-07-18T09:24:42.357684+12:00",
   "date": "2026-07-18",
   "date_friendly": "Sat 18 Jul 2026",
   "summary": "1 thing changed in the last 24 hours.",
   "lines": [
-    "\u20bf Bitcoin **rose 0.3%** in the last 24 hours, to **$63,990**.",
+    "\u20bf Bitcoin **rose 0.5%** in the last 24 hours, to **$64,134**.",
     "\ud83c\udf10 The market backdrop shifted from **LATE_CYCLE** to **RISK_ON**."
   ],
-  "btc_24h_pct": 0.3144713244792254,
+  "btc_24h_pct": 0.540370217088679,
   "first": false,
   "plan": "WAITING"
 }
