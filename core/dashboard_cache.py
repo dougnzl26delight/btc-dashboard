@@ -23,9 +23,12 @@ Pattern:
 from __future__ import annotations
 
 import functools
+import gzip
 import json
+import os
 import pickle
 import time
+import urllib.request
 from pathlib import Path
 from typing import Any, Callable, Optional
 
@@ -33,13 +36,76 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 CACHE_DIR = REPO_ROOT / ".panel_cache"
 
 
+# ============================================================
+# Live overlay (Tier-1 real-time) — see publish_live_cache.py
+# ============================================================
+# The always-on home PC force-pushes a small gzipped blob of the panel caches
+# to the `live-data` branch every few minutes. Streamlit does NOT watch that
+# branch, so data refreshes WITHOUT redeploying the app. Here we fetch that blob
+# out-of-band and let `_load` prefer it over the committed pickle when it is
+# fresher — turning ~1h staleness into ~minutes with zero reboot thrash.
+#
+# Safety: the fetch is TTL-guarded (at most once per _LIVE_TTL), only runs under
+# a live Streamlit session (never during local precompute/publish), and is fully
+# wrapped in try/except — any failure silently falls back to the on-disk pickle,
+# so the app behaves EXACTLY as before whenever the blob is unreachable.
+_LIVE_URL = os.environ.get(
+    "DASHBOARD_LIVE_URL",
+    "https://raw.githubusercontent.com/dougnzl26delight/btc-dashboard/live-data/live_cache.pkl.gz",
+)
+_LIVE_ENABLED = os.environ.get("DASHBOARD_LIVE_OVERLAY", "1") != "0"
+_LIVE_TTL = 60  # seconds between remote re-fetches
+_live_state: dict[str, Any] = {"ts": 0.0, "panels": {}}
+
+
+def _streamlit_active() -> bool:
+    """True only inside a running Streamlit script (Cloud or local cockpit).
+    False during precompute/publish so those never hit the network."""
+    try:
+        from streamlit.runtime import exists  # type: ignore
+        return bool(exists())
+    except Exception:
+        return False
+
+
+def _refresh_live_blob() -> None:
+    """Refresh the in-memory live blob at most once per _LIVE_TTL. Never raises."""
+    now = time.time()
+    if now - _live_state["ts"] < _LIVE_TTL:
+        return
+    _live_state["ts"] = now  # stamp first so failures don't hammer the network
+    try:
+        req = urllib.request.Request(_LIVE_URL, headers={"User-Agent": "btcdelight-app"})
+        raw = urllib.request.urlopen(req, timeout=4).read()
+        data = pickle.loads(gzip.decompress(raw))
+        panels = data.get("panels")
+        if isinstance(panels, dict):
+            _live_state["panels"] = panels
+    except Exception:
+        pass  # keep last-good; disk fallback still applies
+
+
+def _live_get(key: str) -> Optional[tuple[float, Any]]:
+    """Return the live blob's (ts, value) for key, or None. Never raises."""
+    if not (_LIVE_ENABLED and _streamlit_active()):
+        return None
+    try:
+        _refresh_live_blob()
+        entry = _live_state["panels"].get(key)
+        if isinstance(entry, tuple) and len(entry) == 2:
+            return entry
+    except Exception:
+        pass
+    return None
+
+
 def _cache_path(key: str) -> Path:
     safe = "".join(c if c.isalnum() or c in "_-" else "_" for c in key)
     return CACHE_DIR / f"{safe}.pkl"
 
 
-def _load(key: str) -> Optional[tuple[float, Any]]:
-    """Return (timestamp, value) or None."""
+def _load_disk(key: str) -> Optional[tuple[float, Any]]:
+    """Read (timestamp, value) from the on-disk pickle, or None."""
     path = _cache_path(key)
     if not path.exists(): return None
     try:
@@ -47,6 +113,16 @@ def _load(key: str) -> Optional[tuple[float, Any]]:
             return pickle.load(f)
     except Exception:
         return None
+
+
+def _load(key: str) -> Optional[tuple[float, Any]]:
+    """Return (timestamp, value) — the FRESHER of the live blob and the on-disk
+    pickle. Falls back cleanly to either alone (or None)."""
+    live = _live_get(key)
+    disk = _load_disk(key)
+    if live is not None and disk is not None:
+        return live if live[0] >= disk[0] else disk
+    return live if live is not None else disk
 
 
 def _store(key: str, value: Any) -> None:

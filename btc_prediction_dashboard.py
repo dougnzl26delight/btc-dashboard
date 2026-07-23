@@ -41,7 +41,7 @@ st.set_page_config(
 # keeps the Streamlit Cloud app from going to sleep. Guarded so a missing
 # component (e.g. a local run before `pip install streamlit-autorefresh`)
 # degrades gracefully to no-autorefresh.
-_AUTOREFRESH_MS = 300_000  # 5 minutes; lower this for a more live-feeling price ticker
+_AUTOREFRESH_MS = 60_000  # 60s — re-pulls the live-data overlay (publish_live_cache.py) for a near-live feel
 try:
     from streamlit_autorefresh import st_autorefresh
     st_autorefresh(interval=_AUTOREFRESH_MS, key="dashboard_autorefresh")
