@@ -563,14 +563,14 @@ pre, code { white-space: pre-wrap !important; word-break: break-word !important;
 from core.dashboard_cache import disk_cached  # noqa: E402
 
 
-@st.cache_data(ttl=14400)
+@st.cache_data(ttl=60)
 @disk_cached("state_of_btc", ttl=86400)
 def get_state(force_refresh: int = 0):
     from core.btc_prediction import state_of_btc
     return state_of_btc()
 
 
-@st.cache_data(ttl=14400)
+@st.cache_data(ttl=60)
 @disk_cached("bottom_signals", ttl=86400)
 def get_bottom_signals(force_refresh: int = 0):
     from core.btc_bottom_signals import all_bottom_signals
@@ -608,7 +608,7 @@ def get_live_btc_price() -> float:
 # Cache 4h to match the underlying signal cadence.
 # Macro Rotation Tracker (equities → BTC) — cached 30 min
 # (changes more often than other signals as it depends on live SPY)
-@st.cache_data(ttl=1800)
+@st.cache_data(ttl=60)
 @disk_cached("rotation", ttl=86400)
 def cached_rotation():
     from core.btc_macro_rotation import rotation_phase
@@ -617,7 +617,7 @@ def cached_rotation():
 
 # Top Confirmation Scorecard — cached 30 min
 # (hits FRED 7 times, ~28s cold; cache makes warm renders instant)
-@st.cache_data(ttl=1800)
+@st.cache_data(ttl=60)
 @disk_cached("top_scorecard", ttl=86400)
 def cached_top_scorecard():
     from core.btc_top_scorecard import (
@@ -633,7 +633,7 @@ def cached_top_scorecard():
 # Early Rotation Signal — Druckenmiller/PTJ/Zulauf leading indicators.
 # Pre-empts the standard top scorecard by 3-9 months. Routes equity to
 # CASH (not BTC) when BTC isn't bottomed yet.
-@st.cache_data(ttl=1800)
+@st.cache_data(ttl=60)
 @disk_cached("early_rotation", ttl=86400)
 def cached_early_rotation():
     from core.btc_early_rotation import early_rotation_signal
@@ -642,7 +642,7 @@ def cached_early_rotation():
 
 # Unified Decision Engine — top-tier macro layer + regime state machine +
 # all scorecards + liquidity overlay + staging basket. Single source of truth.
-@st.cache_data(ttl=1800)
+@st.cache_data(ttl=60)
 @disk_cached("unified_decision", ttl=86400)
 def cached_unified_decision():
     from core.btc_unified_decision import unified_decision
@@ -652,7 +652,7 @@ def cached_unified_decision():
 # Top 1% Predictor Engine — calibrated framework
 # (IC table + theme composites + BTC state + Kelly+vol-targeted sizing
 #  + failure detection). 10-module quantitative architecture.
-@st.cache_data(ttl=3600)
+@st.cache_data(ttl=60)
 @disk_cached("predictor_engine", ttl=86400)
 def cached_predictor_engine():
     from core.predictor_engine import predictor_engine_state
@@ -661,7 +661,7 @@ def cached_predictor_engine():
     )
 
 
-@st.cache_data(ttl=14400)
+@st.cache_data(ttl=60)
 @disk_cached("date_predictions", ttl=86400)
 def cached_date_predictions():
     """Combined date predictions (indicator extrapolation + cycle 4 analog +
@@ -678,21 +678,21 @@ def cached_date_predictions():
     }
 
 
-@st.cache_data(ttl=14400)
+@st.cache_data(ttl=60)
 @disk_cached("realized_price", ttl=86400)
 def cached_realized_price():
     from core.btc_cost_basis import realized_price
     return realized_price()
 
 
-@st.cache_data(ttl=14400)
+@st.cache_data(ttl=60)
 @disk_cached("sth_cost_basis", ttl=86400)
 def cached_sth_cost_basis():
     from core.btc_cost_basis import sth_cost_basis
     return sth_cost_basis()
 
 
-@st.cache_data(ttl=14400)
+@st.cache_data(ttl=60)
 @disk_cached("realized_cap_drawdown", ttl=86400)
 def cached_realized_cap_drawdown_depth():
     from core.btc_cost_basis import realized_cap_drawdown_depth
@@ -708,7 +708,7 @@ def cached_bottom_probability_distribution(price_bucket: int):
 
 # Olson TA layer — fetches OHLCV, computes MACD/RSI/HA. Cache 1h
 # (timeframes are 1w/3w so daily change is small).
-@st.cache_data(ttl=3600)
+@st.cache_data(ttl=60)
 @disk_cached("olson", ttl=86400)
 def cached_olson():
     from core.btc_jesse_olson import olson_combined_verdict
@@ -717,7 +717,7 @@ def cached_olson():
 
 # 90d candle chart data — cached 30 min (intraday price moves matter
 # but the chart is 90 days so cadence is daily-ish).
-@st.cache_data(ttl=1800)
+@st.cache_data(ttl=60)
 @disk_cached("ohlcv_90d", ttl=86400)
 def cached_ohlcv_90d():
     from core import data
