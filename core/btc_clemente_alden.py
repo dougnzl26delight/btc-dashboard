@@ -574,14 +574,20 @@ def multi_exchange_funding() -> Optional[dict]:
     """
     try:
         import ccxt
-        venues = ["binance", "bybit", "okx"]
+        # NZ-IP resilience (2026-08-10): binance/okx are frequently geoblocked
+        # here, which left bybit as a single point of failure -> any bybit hiccup
+        # returned "no venues responded". Add several more linear-perp venues so
+        # the aggregate survives multiple venues going dark. Per-venue timeout is
+        # bounded so a slow/blocked venue can't stall the whole precompute.
+        venues = ["binance", "bybit", "okx", "gate", "bitget",
+                  "mexc", "kucoinfutures", "bingx", "htx"]
         funding_sum = 0
         oi_sum = 0
         details = {}
         for v in venues:
             try:
                 ex_cls = getattr(ccxt, v)
-                ex = ex_cls({"options": {"defaultType": "swap"}})
+                ex = ex_cls({"timeout": 6000, "options": {"defaultType": "swap"}})
                 ticker = ex.fetch_ticker("BTC/USDT:USDT")
                 f = ticker.get("fundingRate") or ticker.get("info", {}).get("fundingRate", 0)
                 oi = ticker.get("info", {}).get("openInterest") or 0

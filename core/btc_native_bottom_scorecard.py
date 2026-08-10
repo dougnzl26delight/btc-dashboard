@@ -308,37 +308,71 @@ def funding_rate_extreme_negative() -> dict:
     shorts are dominant + paying longs to stay short = positioning extreme.
     Bottoms typically follow within 7-14 days.
     """
+    # Hardened 2026-08-10: multi-venue fetch (see multi_exchange_funding) PLUS a
+    # last-good disk cache. From an NZ IP most perp venues geoblock, so a single
+    # transient miss used to make this read "unavailable" -> data_health flipped
+    # to DEGRADED. Now a miss falls back to the last good reading (<=24h) so the
+    # signal degrades gracefully instead of going dark. Only a live miss AND a
+    # stale/absent cache reports "unavailable".
+    import json
+    from pathlib import Path
+    from datetime import datetime, timezone
+    _LASTGOOD = Path(__file__).resolve().parent.parent / ".funding_last_good.json"
+    _MAX_STALE_H = 24.0
+
+    def _verdict(recent, avg_7d, suffix=""):
+        met = recent < -0.03 and avg_7d < -0.02
+        return {
+            "met": bool(met),
+            "value": recent,
+            "status": (f"Funding 8h {recent:+.3f}%, 7d avg {avg_7d:+.3f}%  "
+                       f"({'EXTREME NEG' if met else 'normal'}){suffix}"),
+            "rationale": "Hayes/Pal: sustained negative funding = shorts crowded, bottom in 7-14d.",
+        }
+
+    # --- 1) live fetch (multi-venue, resilient) ---
+    cur = {}
     try:
-        # 2026-07-07 signals audit: the old helper (btc_premium_free._funding_rate)
-        # no longer exists — this criterion read "unavailable" indefinitely.
-        # Rebuilt on the WORKING multi-venue fetcher (OI-weighted Binance/Bybit/
-        # OKX, bps) + Binance funding history for the 7d average. Free data.
         from core.btc_clemente_alden import multi_exchange_funding
         cur = multi_exchange_funding() or {}
-        if cur.get("error") or "agg_funding_bps" not in cur:
-            return {"met": False, "status": "funding data unavailable"}
+    except Exception:
+        cur = {}
+    if not cur.get("error") and "agg_funding_bps" in cur:
         recent = float(cur["agg_funding_bps"]) / 100.0   # bps -> % per 8h
-        avg_7d = recent   # fallback if history fetch fails below
+        avg_7d = recent                                  # fallback if history fails
         try:
             import ccxt
-            ex = ccxt.binance({"options": {"defaultType": "swap"}})
+            # Bybit (reachable from NZ) for the 7d avg; ~21 funding periods = 7d.
+            ex = ccxt.bybit({"timeout": 6000, "options": {"defaultType": "swap"}})
             hist = ex.fetch_funding_rate_history("BTC/USDT:USDT", limit=21)
             rates = [float(h.get("fundingRate") or 0) * 100 for h in hist if h]
             if rates:
                 avg_7d = sum(rates) / len(rates)
         except Exception:
             pass
-        met = recent < -0.03 and avg_7d < -0.02
-        return {
-            "met": bool(met),
-            "value": recent,
-            "status": (f"Funding 8h {recent:+.3f}%, 7d avg {avg_7d:+.3f}%  "
-                       f"({'EXTREME NEG' if met else 'normal'})"),
-            "rationale": "Hayes/Pal: sustained negative funding = shorts crowded, bottom in 7-14d.",
-        }
-    except Exception as e:
-        # Fallback: use crude proxy via price action
-        return {"met": False, "status": f"funding helper unavailable"}
+        try:
+            _LASTGOOD.write_text(json.dumps({
+                "recent": recent, "avg_7d": avg_7d,
+                "ts": datetime.now(timezone.utc).isoformat()}))
+        except Exception:
+            pass
+        return _verdict(recent, avg_7d)
+
+    # --- 2) graceful degrade: last-good cache (status has NO "unavail" -> stays fresh) ---
+    try:
+        d = json.loads(_LASTGOOD.read_text())
+        age_h = (datetime.now(timezone.utc)
+                 - datetime.fromisoformat(d["ts"])).total_seconds() / 3600.0
+        if age_h <= _MAX_STALE_H:
+            r = _verdict(float(d["recent"]), float(d["avg_7d"]),
+                         suffix=f" [cached {age_h:.1f}h ago]")
+            r["stale"] = True
+            return r
+    except Exception:
+        pass
+
+    # --- 3) truly no data (live miss + no recent cache) ---
+    return {"met": False, "status": "funding data unavailable (all venues + cache miss)"}
 
 
 def cycle_day_analog_match() -> dict:
