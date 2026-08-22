@@ -166,6 +166,12 @@ def _panels() -> dict:
         return all_cycle_dials()
     _safe("cycle_dials", _cycle_dials)
 
+    # PB1: Past cycle bottoms overlay (bounce -> lower low -> bull, current cycle overlaid)
+    def _past_bottoms():
+        from core.past_bottoms_chart import past_bottoms_chart
+        return past_bottoms_chart()
+    _safe("past_bottoms", _past_bottoms)
+
     # F1: Free-tier proxies for paid metrics (HODL Waves, Reserve Risk, CVDD, etc.)
     def _proxies():
         from core.btc_advanced_proxies import all_proxies

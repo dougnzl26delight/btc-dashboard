@@ -3363,6 +3363,18 @@ with tab_research:   # <- 2026-07-04 restructure
             st.plotly_chart(_dials["cycle_overlay"], width='stretch',
                             config={"displayModeBar": False, "scrollZoom": False, "doubleClick": False, "displaylogo": False})
 
+        # Row 3: Past cycle bottoms overlay (bounce -> lower low -> bull, current cycle overlaid)
+        _pb = get_cached("past_bottoms")
+        if _pb and _pb.get("data"):
+            st.plotly_chart(_pb, width='stretch',
+                            config={"displayModeBar": False, "scrollZoom": False, "doubleClick": False, "displaylogo": False})
+            st.caption(
+                "**Past cycle bottoms**: each major low indexed to its first bottom (=100), by days "
+                "since. In 2018/2021/2022 price bounced, then made a *lower low* below 100 before the "
+                "bull. The gold line is the current cycle (June-2026 low = 100) — bounced ~+31%, no "
+                "lower low yet. History keeps a lower low on the table until the cycle-bottom window closes."
+            )
+
         # Quick caption explaining the dials
         st.caption(
             "**Halving Clock**: where we are in the 4-year cycle. **BTC Dominance**: "
