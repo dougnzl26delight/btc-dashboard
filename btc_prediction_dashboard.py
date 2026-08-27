@@ -23,6 +23,29 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
+# ── Safe plotly render (2026-08-27) ─────────────────────────────────────────
+# plotly 6.x removed plotly.exceptions.PlotlyEmptyDataError, but the legacy
+# validate path st.plotly_chart still uses references it — so rendering a
+# figure with EMPTY data raises AttributeError and takes down the whole
+# surrounding try-block (every "... temporarily unavailable"). Guard every
+# chart globally: coerce dicts to Figure, and SKIP empty figures instead of
+# crashing the section. All 29 st.plotly_chart call sites route through this.
+_st_plotly_chart_orig = st.plotly_chart
+
+
+def _safe_plotly_chart(figure_or_data=None, *args, **kwargs):
+    try:
+        fig = (figure_or_data if isinstance(figure_or_data, go.Figure)
+               else go.Figure(figure_or_data))
+    except Exception:
+        return None
+    if not getattr(fig, "data", None):   # empty fig -> plotly's empty-data check is broken
+        return None
+    return _st_plotly_chart_orig(fig, *args, **kwargs)
+
+
+st.plotly_chart = _safe_plotly_chart
+
 REPO_ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(REPO_ROOT))
 
