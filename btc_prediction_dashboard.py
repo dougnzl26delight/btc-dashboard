@@ -3363,42 +3363,6 @@ with tab_research:   # <- 2026-07-04 restructure
             st.plotly_chart(_dials["cycle_overlay"], width='stretch',
                             config={"displayModeBar": False, "scrollZoom": False, "doubleClick": False, "displaylogo": False})
 
-        # Row 3: Past cycle bottoms overlay (bounce -> lower low -> bull, current cycle overlaid)
-        _pb = get_cached("past_bottoms")
-        if _pb and _pb.get("data"):
-            st.plotly_chart(_pb, width='stretch',
-                            config={"displayModeBar": False, "scrollZoom": False, "doubleClick": False, "displaylogo": False})
-            st.caption(
-                "**Past cycle bottoms**: each major low indexed to its first bottom (=100), by days "
-                "since. In 2018/2021/2022 price bounced, then made a *lower low* below 100 before the "
-                "bull. The gold line is the current cycle (June-2026 low = 100) — bounced ~+31%, no "
-                "lower low yet. History keeps a lower low on the table until the cycle-bottom window closes."
-            )
-
-        # Row 4: Cross-cycle bottom TIMING + DEPTH table
-        _ctt = get_cached("cycle_timing_table")
-        if _ctt and _ctt.get("rows"):
-            def _c(x):
-                return "—" if x is None else str(x)
-            _lines = []
-            for _r in _ctt["rows"]:
-                _lines.append(
-                    f"| {_c(_r.get('cycle'))} | {_c(_r.get('peak'))} | {_c(_r.get('h2p'))} | "
-                    f"{_c(_r.get('p2b'))} | {_c(_r.get('h2b'))} | {_c(_r.get('bottom'))} | "
-                    f"{_c(_r.get('drawdown'))} |"
-                )
-            _ttbl = ("| Cycle | Peak | Halving→Peak | Peak→Bottom | Halving→Bottom | Bottom | Drawdown |\n"
-                     "|---|---|---|---|---|---|---|\n" + "\n".join(_lines))
-            _dtp = _ctt.get("days_to_projected")
-            st.markdown(
-                "**Cycle bottom timing & depth** — halving→peak→bottom day counts, recomputed live. "
-                "Prior bottoms landed ~+363–376d after the peak (~+889–924d after halving); the current "
-                "peak was textbook (+534d), so the bottom window projects to **~"
-                f"{_c(_ctt.get('projected_bottom_date'))}** (~{_c(_dtp)}d out). Note the **depth "
-                "compression** — −84% → −77% → only −54% so far — this cycle is running about half as "
-                "deep as the last two.\n\n" + _ttbl + f"\n\n_As of {_c(_ctt.get('asof'))}._"
-            )
-
         # Quick caption explaining the dials
         st.caption(
             "**Halving Clock**: where we are in the 4-year cycle. **BTC Dominance**: "
@@ -3408,7 +3372,49 @@ with tab_research:   # <- 2026-07-04 restructure
             "capitulation at bottom. **Cycle overlay**: where cycle 5 stands vs cycle 4 path."
         )
     except Exception as _e:
-        st.caption(f"Swift Dials — temporarily unavailable")
+        st.caption(f"Swift Dials — temporarily unavailable ({type(_e).__name__}: {_e})")
+
+    # 🆕 Cycle-bottom context — past-bottoms overlay + timing table. Kept in their
+    # OWN try blocks (not the Swift Dials try above) so a dial failure can't hide
+    # them, and rendered via go.Figure so a plain dict can't trip st.plotly_chart.
+    try:
+        _pb = get_cached("past_bottoms")
+        if _pb and _pb.get("data"):
+            import plotly.graph_objects as _go
+            st.plotly_chart(_go.Figure(_pb), width='stretch',
+                            config={"displayModeBar": False, "scrollZoom": False, "doubleClick": False, "displaylogo": False})
+            st.caption(
+                "**Past cycle bottoms**: each major low indexed to its first bottom (=100), by days "
+                "since. In 2018/2021/2022 price bounced, then made a *lower low* below 100 before the "
+                "bull. The gold line is the current cycle (June-2026 low = 100) — bounced, no lower low "
+                "yet. History keeps a lower low on the table until the cycle-bottom window closes."
+            )
+    except Exception as _e:
+        st.caption(f"Past-bottoms chart — unavailable ({type(_e).__name__}: {_e})")
+
+    try:
+        _ctt = get_cached("cycle_timing_table")
+        if _ctt and _ctt.get("rows"):
+            def _c(x):
+                return "—" if x is None else str(x)
+            _lines = [
+                f"| {_c(_r.get('cycle'))} | {_c(_r.get('peak'))} | {_c(_r.get('h2p'))} | "
+                f"{_c(_r.get('p2b'))} | {_c(_r.get('h2b'))} | {_c(_r.get('bottom'))} | "
+                f"{_c(_r.get('drawdown'))} |"
+                for _r in _ctt["rows"]
+            ]
+            _ttbl = ("| Cycle | Peak | Halving→Peak | Peak→Bottom | Halving→Bottom | Bottom | Drawdown |\n"
+                     "|---|---|---|---|---|---|---|\n" + "\n".join(_lines))
+            st.markdown(
+                "**Cycle bottom timing & depth** — halving→peak→bottom day counts, recomputed live. "
+                "Prior bottoms landed ~+363–376d after the peak (~+889–924d after halving); the current "
+                "peak was textbook (+534d), so the bottom window projects to **~"
+                f"{_c(_ctt.get('projected_bottom_date'))}** (~{_c(_ctt.get('days_to_projected'))}d out). "
+                "Note the **depth compression** — −84% → −77% → only −54% so far — this cycle is running "
+                "about half as deep as the last two.\n\n" + _ttbl + f"\n\n_As of {_c(_ctt.get('asof'))}._"
+            )
+    except Exception as _e:
+        st.caption(f"Cycle-timing table — unavailable ({type(_e).__name__}: {_e})")
 
 
     # ═══════════════════════════════════════════════════════════════════
