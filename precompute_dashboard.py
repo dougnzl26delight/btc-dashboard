@@ -172,6 +172,12 @@ def _panels() -> dict:
         return past_bottoms_chart()
     _safe("past_bottoms", _past_bottoms)
 
+    # PB2: Cross-cycle bottom timing + depth table (halving->peak->bottom, drawdown)
+    def _cycle_timing():
+        from core.cycle_timing_table import cycle_timing_table
+        return cycle_timing_table()
+    _safe("cycle_timing_table", _cycle_timing)
+
     # F1: Free-tier proxies for paid metrics (HODL Waves, Reserve Risk, CVDD, etc.)
     def _proxies():
         from core.btc_advanced_proxies import all_proxies

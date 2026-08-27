@@ -3375,6 +3375,30 @@ with tab_research:   # <- 2026-07-04 restructure
                 "lower low yet. History keeps a lower low on the table until the cycle-bottom window closes."
             )
 
+        # Row 4: Cross-cycle bottom TIMING + DEPTH table
+        _ctt = get_cached("cycle_timing_table")
+        if _ctt and _ctt.get("rows"):
+            def _c(x):
+                return "—" if x is None else str(x)
+            _lines = []
+            for _r in _ctt["rows"]:
+                _lines.append(
+                    f"| {_c(_r.get('cycle'))} | {_c(_r.get('peak'))} | {_c(_r.get('h2p'))} | "
+                    f"{_c(_r.get('p2b'))} | {_c(_r.get('h2b'))} | {_c(_r.get('bottom'))} | "
+                    f"{_c(_r.get('drawdown'))} |"
+                )
+            _ttbl = ("| Cycle | Peak | Halving→Peak | Peak→Bottom | Halving→Bottom | Bottom | Drawdown |\n"
+                     "|---|---|---|---|---|---|---|\n" + "\n".join(_lines))
+            _dtp = _ctt.get("days_to_projected")
+            st.markdown(
+                "**Cycle bottom timing & depth** — halving→peak→bottom day counts, recomputed live. "
+                "Prior bottoms landed ~+363–376d after the peak (~+889–924d after halving); the current "
+                "peak was textbook (+534d), so the bottom window projects to **~"
+                f"{_c(_ctt.get('projected_bottom_date'))}** (~{_c(_dtp)}d out). Note the **depth "
+                "compression** — −84% → −77% → only −54% so far — this cycle is running about half as "
+                "deep as the last two.\n\n" + _ttbl + f"\n\n_As of {_c(_ctt.get('asof'))}._"
+            )
+
         # Quick caption explaining the dials
         st.caption(
             "**Halving Clock**: where we are in the 4-year cycle. **BTC Dominance**: "
