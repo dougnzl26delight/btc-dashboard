@@ -1,12 +1,13 @@
 {
-  "generated_local": "2026-08-28T04:25:50.735320+12:00",
+  "generated_local": "2026-08-28T05:26:23.625540+12:00",
   "date": "2026-08-28",
   "date_friendly": "Fri 28 Aug 2026",
-  "summary": "A quiet 24 hours \u2014 the key signals held steady.",
+  "summary": "1 thing changed in the last 24 hours.",
   "lines": [
-    "\u20bf Bitcoin **rose 1.9%** in the last 24 hours, to **$80,536**."
+    "\u20bf Bitcoin **rose 2.2%** in the last 24 hours, to **$80,775**.",
+    "\ud83c\udf10 The market backdrop shifted from **RISK_ON** to **LATE_CYCLE**."
   ],
-  "btc_24h_pct": 1.9173457081498897,
+  "btc_24h_pct": 2.223974224475359,
   "first": false,
   "plan": "WAITING"
 }
