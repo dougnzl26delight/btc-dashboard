@@ -1,12 +1,12 @@
 {
-  "generated_local": "2026-09-03T06:24:29.094471+12:00",
+  "generated_local": "2026-09-03T07:24:54.701314+12:00",
   "date": "2026-09-03",
   "date_friendly": "Thu 03 Sep 2026",
   "summary": "A quiet 24 hours \u2014 the key signals held steady.",
   "lines": [
-    "\u20bf Bitcoin was roughly flat over the last 24 hours, around **$77,409**."
+    "\u20bf Bitcoin was roughly flat over the last 24 hours, around **$77,202**."
   ],
-  "btc_24h_pct": 0.0139538309079938,
+  "btc_24h_pct": -0.2558202333132208,
   "first": false,
   "plan": "WAITING"
 }
