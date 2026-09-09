@@ -587,7 +587,7 @@
     },
     {
       "date": "2026-09-09",
-      "price": 79442.3,
+      "price": 79066.3,
       "cheap": "cheap",
       "cycle_buy": 4,
       "cycle_total": 7,
@@ -598,7 +598,7 @@
       "qqq_tier": "SAFE",
       "semis_tier": "BREAKDOWN",
       "plan": "WAITING",
-      "regime": "RISK_ON"
+      "regime": "LATE_CYCLE"
     }
   ]
 }
