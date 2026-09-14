@@ -587,18 +587,18 @@
     },
     {
       "date": "2026-09-15",
-      "price": 77768.5,
+      "price": 78282.7,
       "cheap": "cheap",
       "cycle_buy": 4,
       "cycle_total": 7,
       "bottom_n": 2,
       "bottom_total": 16,
-      "stocks_n": 2,
+      "stocks_n": 1,
       "stocks_total": 10,
       "qqq_tier": "SAFE",
       "semis_tier": "BREAKDOWN",
       "plan": "WAITING",
-      "regime": "LATE_CYCLE"
+      "regime": "RISK_ON"
     }
   ]
 }
