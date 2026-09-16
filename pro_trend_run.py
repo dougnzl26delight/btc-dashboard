@@ -16,6 +16,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+from core import rt_locks
 from ops import alerts, watchdog
 from ops.sleeve_circuit_breakers import apply_sleeve_scaling, is_paused
 from strategies import pro_trend
@@ -74,6 +75,12 @@ def main():
     results = []
     universe = list(pro_trend.PRO_TREND_PAIRS) + _orphaned_pairs()
     for pair in universe:
+        # realtime_monitor closes stops within ~1s and claims the pair while it
+        # does. Skip rather than race it into a double exit; the lock is
+        # TTL-bounded, so this sleeve resumes on its own if that process dies.
+        if rt_locks.is_active("pro_trend", pair):
+            print(f"{pair:<10s} skipped — realtime_monitor holds an execution lock")
+            continue
         try:
             # enable_shorts=True (2026-05-28): re-enabled with new v5 SHORT
             # entry filter (TSMOM_30 < -0.10 AND MACD_hist < 0) gating the

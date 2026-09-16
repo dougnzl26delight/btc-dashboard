@@ -17,6 +17,7 @@ Auto-reconnect with exponential backoff. Disconnects logged. Will run forever.
 from __future__ import annotations
 
 import json
+import queue
 import sys
 import threading
 import time
@@ -43,6 +44,14 @@ BINANCE_WS_BASE = "wss://stream.binance.com:9443/stream"
 RECONNECT_DELAYS = [1, 2, 4, 8, 16, 32, 60, 60, 60]  # seconds
 CACHE_FLUSH_INTERVAL_SEC = 1.0
 
+# Listener callbacks and the disk flush used to run INLINE on the WebSocket
+# reader thread. Any slow listener therefore stalled frame reads, which delayed
+# pong handling and tripped ping_timeout -> reconnect (the .ws_feed.log history
+# shows ~150-200 reconnects/day, 75% of them "ping/pong timed out"). Both now
+# run on their own threads so the reader only ever parses and caches.
+EVENT_QUEUE_MAX = 10_000        # backpressure bound; oldest ticks dropped first
+WS_LOG_MAX_BYTES = 2_000_000    # rotate at ~2MB (log was unbounded)
+
 
 def _pair_to_stream(pair: str) -> str:
     """BTC/USDT -> btcusdt@bookTicker"""
@@ -57,26 +66,44 @@ def _stream_to_pair(stream: str) -> str:
 
 
 class PriceCache:
-    """Thread-safe live price store + periodic JSON flush."""
+    """Thread-safe live price store, async listener dispatch + periodic JSON flush.
+
+    The reader thread only does update() (cache write + enqueue). Listener
+    callbacks run on a single dispatch thread, so tick ORDER is preserved while
+    a slow listener can no longer block the socket.
+    """
 
     def __init__(self):
         self._lock = threading.Lock()
         self._cache: dict[str, dict] = {}
-        self._last_flush = 0.0
         # Listeners: callbacks invoked on every update with (pair, bid, ask, ts)
         self._listeners: list[Callable] = []
+        self._events: queue.Queue = queue.Queue(maxsize=EVENT_QUEUE_MAX)
+        self._dropped = 0
+        self._stop = threading.Event()
+        self._dispatcher: Optional[threading.Thread] = None
+        self._flusher: Optional[threading.Thread] = None
 
+    # --- hot path (reader thread) -----------------------------------------
     def update(self, pair: str, bid: float, ask: float):
         ts = time.time()
         with self._lock:
             self._cache[pair] = {
                 "bid": bid, "ask": ask, "mid": (bid + ask) / 2, "ts": ts,
             }
-        for listener in self._listeners:
+        if not self._listeners:
+            return
+        try:
+            self._events.put_nowait((pair, bid, ask, ts))
+        except queue.Full:
+            # Consumer is behind. Drop the OLDEST tick, not the newest — stale
+            # prices are worthless to a stop-loss check, fresh ones are not.
             try:
-                listener(pair, bid, ask, ts)
-            except Exception as e:
-                _log(f"listener error on {pair}: {e}")
+                self._events.get_nowait()
+                self._dropped += 1
+                self._events.put_nowait((pair, bid, ask, ts))
+            except (queue.Empty, queue.Full):
+                self._dropped += 1
 
     def get(self, pair: str) -> Optional[dict]:
         with self._lock:
@@ -86,29 +113,84 @@ class PriceCache:
         with self._lock:
             return dict(self._cache)
 
+    @property
+    def dropped_events(self) -> int:
+        return self._dropped
+
+    @property
+    def queue_depth(self) -> int:
+        return self._events.qsize()
+
+    # --- listeners ---------------------------------------------------------
     def subscribe(self, listener: Callable) -> None:
         """Listener signature: (pair, bid, ask, timestamp_unix)."""
         self._listeners.append(listener)
+        self.start_dispatcher()
 
-    def maybe_flush(self) -> None:
-        now = time.time()
-        if now - self._last_flush < CACHE_FLUSH_INTERVAL_SEC:
+    def start_dispatcher(self) -> None:
+        if self._dispatcher is not None:
             return
-        self._last_flush = now
+        self._dispatcher = threading.Thread(
+            target=self._dispatch_loop, daemon=True, name="ws-dispatch")
+        self._dispatcher.start()
+
+    def _dispatch_loop(self) -> None:
+        while not self._stop.is_set():
+            try:
+                pair, bid, ask, ts = self._events.get(timeout=1.0)
+            except queue.Empty:
+                continue
+            for listener in self._listeners:
+                try:
+                    listener(pair, bid, ask, ts)
+                except Exception as e:
+                    _log(f"listener error on {pair}: {e}")
+
+    # --- disk flush --------------------------------------------------------
+    def start_flusher(self) -> None:
+        if self._flusher is not None:
+            return
+        self._flusher = threading.Thread(
+            target=self._flush_loop, daemon=True, name="ws-flush")
+        self._flusher.start()
+
+    def _flush_loop(self) -> None:
+        while not self._stop.is_set():
+            if self._stop.wait(CACHE_FLUSH_INTERVAL_SEC):
+                break
+            self._flush()
+
+    def _flush(self) -> None:
         try:
             snapshot = self.all()
+            if not snapshot:
+                return
             snapshot["_meta"] = {
                 "flushed_at": datetime.now(timezone.utc).isoformat(),
                 "n_pairs": len([k for k in snapshot if not k.startswith("_")]),
+                "dropped_events": self._dropped,
+                "queue_depth": self._events.qsize(),
             }
-            LIVE_PRICES_FILE.write_text(json.dumps(snapshot, default=str))
+            # Write-then-rename: a reader (dashboard) never sees a half-written
+            # file, which plain write_text allowed.
+            tmp = LIVE_PRICES_FILE.parent / (LIVE_PRICES_FILE.name + ".tmp")
+            tmp.write_text(json.dumps(snapshot, default=str))
+            tmp.replace(LIVE_PRICES_FILE)
         except Exception as e:
             _log(f"flush error: {e}")
+
+    def stop(self) -> None:
+        self._stop.set()
 
 
 def _log(msg: str) -> None:
     ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
     line = f"{ts}  {msg}\n"
+    try:
+        if WS_LOG_FILE.exists() and WS_LOG_FILE.stat().st_size > WS_LOG_MAX_BYTES:
+            WS_LOG_FILE.replace(WS_LOG_FILE.parent / (WS_LOG_FILE.name + ".1"))
+    except Exception:
+        pass
     try:
         with WS_LOG_FILE.open("a", encoding="utf-8") as f:
             f.write(line)
@@ -143,7 +225,6 @@ class BinanceFeed:
             ask = float(payload.get("a") or 0)
             if bid > 0 and ask > 0:
                 self.cache.update(pair, bid, ask)
-                self.cache.maybe_flush()
         except Exception as e:
             _log(f"message parse error: {e}")
 
@@ -183,6 +264,7 @@ class BinanceFeed:
 
     def stop(self):
         self._stop = True
+        self.cache.stop()
         if self._ws:
             self._ws.close()
 
@@ -201,6 +283,7 @@ def start_background_feed(pairs: list[str] | None = None) -> PriceCache:
     if _feed_singleton is not None:
         return _feed_singleton.cache
     _feed_singleton = BinanceFeed(pairs)
+    _feed_singleton.cache.start_flusher()
     _feed_thread = threading.Thread(target=_feed_singleton.run_forever,
                                      daemon=True, name="binance-ws-feed")
     _feed_thread.start()

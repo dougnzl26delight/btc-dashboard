@@ -35,6 +35,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
 from core import data
+from core import rt_locks
 from core.broker import Broker
 from core.pnl_attribution import tag_entry, untag
 from core.pnl_db import log_trade, log_signal
@@ -197,6 +198,11 @@ def cycle(mode: str = "paper") -> dict:
 
     # === Exit logic for open positions ===
     for pair, info in list(open_pos.items()):
+        # realtime_monitor may already be closing this position — see
+        # core.rt_locks. Leave it alone this cycle rather than double-exiting.
+        if rt_locks.is_active(NAME, pair):
+            actions.append({"action": "exit_skipped_rt_lock", "pair": pair})
+            continue
         try:
             df = data.ohlcv_extended(pair, days_back=30)
             if df.empty:

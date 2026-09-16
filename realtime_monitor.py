@@ -26,6 +26,7 @@ import json
 import sys
 import threading
 import time
+from collections import deque
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
@@ -38,6 +39,7 @@ from core.perp_broker import PerpBroker
 from core.pnl_db import log_trade
 from core.ws_feed import start_background_feed, DEFAULT_PAIRS
 from core.pnl_attribution import untag
+from core import rt_locks
 from ops.alerts import alert
 from ops import watchdog
 
@@ -55,15 +57,70 @@ MIN_ALERT_INTERVAL_SEC = 300     # rate-limit alerts per pair to once per 5 min
 DIRECT_EXECUTION_ENABLED = True
 
 # Lock file pattern: prevents race between RT exit + cron exit on same position.
-# Cron sleeves check for this lock before processing the same pair.
-RT_EXECUTION_LOCK_DIR = REPO_ROOT
+# Owned by core.rt_locks, which enforces the TTL and is read by the cron
+# sleeve runners (pro_trend_run, strategies.oversold_bounce).
 RT_LOCK_TTL_SEC = 300  # locks expire after 5 min
 
-# Track recent price history per pair (timestamp, price) — for flash detection
-_price_history: dict[str, list[tuple]] = {}
+# A breached stop is still breached on the next tick, and the position is only
+# cleared by the 60s reload. Without a cooldown the execution block re-fired on
+# every tick (~74/s on BTC) — thousands of duplicate broker calls per exit.
+RT_EXEC_COOLDOWN_SEC = POSITION_RELOAD_SEC
+
+# Sliding flash-crash windows per pair — see _FlashWindow
+_flash_windows: dict[str, "_FlashWindow"] = {}
 _last_alert_ts: dict[str, float] = {}
+_exec_cooldown: dict[tuple, float] = {}   # (sleeve, pair) -> last attempt ts
 _positions: dict[str, dict] = {}      # pair -> position dict
 _state_lock = threading.Lock()
+
+
+class _FlashWindow:
+    """Rolling price window with O(1) amortised running max.
+
+    The previous implementation kept a plain list and, on EVERY tick, did
+    `history.pop(0)` (O(n) memmove) plus `max(p for _, p in history)` (full
+    scan). Window length scales with tick rate, so cost grew with the SQUARE of
+    market activity: at BTC's 74 ticks/s the window holds ~4,400 points and was
+    rescanned 74x a second; doubling activity cost ~3.9x the CPU.
+
+    `maxq` holds indices-into-time whose prices are monotonically decreasing, so
+    maxq[0] is always the window maximum.
+    """
+
+    __slots__ = ("points", "maxq")
+
+    def __init__(self) -> None:
+        self.points: deque = deque()   # (ts, price)
+        self.maxq: deque = deque()     # (ts, price), prices decreasing
+
+    def add(self, ts: float, price: float) -> None:
+        # The deque algorithm needs non-decreasing timestamps. Live ticks are,
+        # but a backwards system-clock step would otherwise silently corrupt the
+        # running max (the old full-scan version was immune). Clamp instead.
+        if self.points and ts < self.points[-1][0]:
+            ts = self.points[-1][0]
+        self.points.append((ts, price))
+        mq = self.maxq
+        # Anything <= the new price can never be the max again while the new
+        # point is in the window, so drop it.
+        while mq and mq[-1][1] <= price:
+            mq.pop()
+        mq.append((ts, price))
+
+    def trim(self, cutoff: float) -> None:
+        pts = self.points
+        while pts and pts[0][0] < cutoff:
+            pts.popleft()
+        mq = self.maxq
+        while mq and mq[0][0] < cutoff:
+            mq.popleft()
+
+    @property
+    def max_price(self) -> float:
+        return self.maxq[0][1] if self.maxq else 0.0
+
+    def __len__(self) -> int:
+        return len(self.points)
 
 
 def _alert_throttled(key: str, message: str, level: str = "warning"):
@@ -151,15 +208,14 @@ def _check_flash_crash(pair: str, current_price: float, ts: float):
     """Detect 3%+ drop in BTC/ETH within 60 seconds — emergency kill."""
     if pair not in FLASH_CRASH_KILL_PAIRS:
         return
-    history = _price_history.setdefault(pair, [])
-    history.append((ts, current_price))
-    # Trim to window
-    cutoff = ts - FLASH_CRASH_WINDOW_SEC
-    while history and history[0][0] < cutoff:
-        history.pop(0)
-    if len(history) < 5:
+    window = _flash_windows.get(pair)
+    if window is None:
+        window = _flash_windows[pair] = _FlashWindow()
+    window.add(ts, current_price)
+    window.trim(ts - FLASH_CRASH_WINDOW_SEC)
+    if len(window) < 5:
         return
-    max_recent = max(p for _, p in history)
+    max_recent = window.max_price
     drop_pct = (max_recent - current_price) / max_recent if max_recent > 0 else 0
     if drop_pct > FLASH_CRASH_THRESHOLD_PCT:
         # FLASH CRASH — write kill switch
@@ -191,11 +247,12 @@ def _write_hint_file(pair: str, sleeve: str, side: str, reason: str,
 def _check_position_exits(pair: str, bid: float, ask: float, ts: float):
     """For every open position on this pair, check stop/target."""
     with _state_lock:
-        position_list = _positions.get(pair, [])
+        position_list = list(_positions.get(pair, []))
     if not position_list:
         return
 
     mid = (bid + ask) / 2
+    closed: list[dict] = []
 
     for pos in position_list:
         try:
@@ -223,21 +280,28 @@ def _check_position_exits(pair: str, bid: float, ask: float, ts: float):
                     exit_reason = f"target_hit (mid {mid} <= target {target})"
 
             if exit_reason:
+                key = (sleeve, pair)
+                now = time.time()
+                # Re-fire guard. The old code throttled only the ALERT and then
+                # ran the broker call unconditionally on every tick.
+                if now - _exec_cooldown.get(key, 0.0) < RT_EXEC_COOLDOWN_SEC:
+                    continue
+                # The cron sleeve may already be closing this pair.
+                if rt_locks.is_active(sleeve, pair):
+                    continue
+                _exec_cooldown[key] = now
+
                 _alert_throttled(f"exit_{sleeve}_{pair}",
                                  f"REAL-TIME EXIT TRIGGER: {sleeve} {pair} {side}, {exit_reason}",
                                  level="warning")
 
                 # W10 DIRECT EXECUTION: place exit order immediately via broker
-                # Lock file prevents the cron sleeve from double-exiting this pair.
-                lock_file = RT_EXECUTION_LOCK_DIR / f".rt_exec_lock_{sleeve}_{pair.replace('/', '_')}.json"
+                # Lock file stops the cron sleeve double-exiting this pair.
                 if DIRECT_EXECUTION_ENABLED:
                     try:
-                        # Write lock first so cron sees it
-                        lock_file.write_text(json.dumps({
-                            "locked_at": datetime.now(timezone.utc).isoformat(),
-                            "sleeve": sleeve, "pair": pair, "reason": exit_reason,
-                            "ttl_seconds": RT_LOCK_TTL_SEC,
-                        }))
+                        # Claim the pair first so cron sees it
+                        rt_locks.acquire(sleeve, pair, reason=exit_reason,
+                                         ttl=RT_LOCK_TTL_SEC)
                         # Place exit order based on sleeve type
                         qty = abs(pos.get("qty", 0))
                         if pos.get("venue") == "perp":
@@ -258,20 +322,27 @@ def _check_position_exits(pair: str, bid: float, ask: float, ts: float):
                         _alert_throttled(f"rt_exec_{sleeve}_{pair}",
                                          f"RT EXEC: closed {sleeve} {pair} {side} at ${mid:.4f}",
                                          level="trade")
+                        # Drop it from the live set immediately; the 60s reload
+                        # confirms from the state file.
+                        closed.append(pos)
                     except Exception as e:
                         # If RT exec fails, fall back to hint-file pattern
                         _alert_throttled(f"rt_exec_fail_{pair}",
                                          f"RT exec failed for {sleeve} {pair}: {e}. Falling back to hint file.",
                                          level="warning")
-                        try:
-                            lock_file.unlink()  # release lock so cron can take over
-                        except Exception:
-                            pass
+                        rt_locks.release(sleeve, pair)  # let cron take over
                         _write_hint_file(pair, sleeve, side, exit_reason, mid, stop, trail, target)
                 else:
                     _write_hint_file(pair, sleeve, side, exit_reason, mid, stop, trail, target)
+                    closed.append(pos)
         except Exception as e:
             _alert_throttled(f"exit_err_{pair}", f"position exit check error on {pair}: {e}", level="warning")
+
+    if closed:
+        with _state_lock:
+            live = _positions.get(pair, [])
+            # Identity, not equality — two sleeves can hold identical dicts.
+            _positions[pair] = [x for x in live if not any(x is c for c in closed)]
 
 
 def _on_price_update(pair: str, bid: float, ask: float, ts: float):
@@ -288,6 +359,12 @@ def _position_reload_loop():
             with _state_lock:
                 _positions.clear()
                 _positions.update(new_positions)
+            # Drop expired locks so a crashed executor can never wedge a pair.
+            rt_locks.sweep()
+            # Forget cooldowns for pairs that are no longer open.
+            cutoff = time.time() - RT_EXEC_COOLDOWN_SEC
+            for k in [k for k, t in _exec_cooldown.items() if t < cutoff]:
+                _exec_cooldown.pop(k, None)
         except Exception as e:
             try:
                 from ops.alerts import alert
@@ -301,6 +378,11 @@ def main():
     """Persistent service entry point. Runs forever; restart on crash via task."""
     print(f"=== Real-time monitor starting @ {datetime.now(timezone.utc).isoformat()} ===")
     print(f"Subscribing to {len(DEFAULT_PAIRS)} pairs via Binance WebSocket")
+
+    # Clear locks left behind by a previous run before trusting them.
+    swept = rt_locks.sweep()
+    if swept:
+        print(f"Swept {swept} expired RT execution lock(s)")
 
     # Load initial positions
     initial = _load_positions()
