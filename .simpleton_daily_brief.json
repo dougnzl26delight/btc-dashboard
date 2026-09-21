@@ -1,14 +1,14 @@
 {
-  "generated_local": "2026-09-22T06:24:47.209450+12:00",
+  "generated_local": "2026-09-22T07:25:02.988942+12:00",
   "date": "2026-09-22",
   "date_friendly": "Tue 22 Sep 2026",
   "summary": "2 things changed in the last 24 hours.",
   "lines": [
-    "\u20bf Bitcoin **rose 5.9%** in the last 24 hours, to **$85,951**.",
+    "\u20bf Bitcoin **rose 6.2%** in the last 24 hours, to **$86,226**.",
     "\ud83d\udcc9 The stock-market tier moved from **SAFE** to **CAUTION**.",
     "\ud83e\udded **The plan changed: now GETTING READY** (was WAITING) \u2014 worth a look."
   ],
-  "btc_24h_pct": 5.897935045093884,
+  "btc_24h_pct": 6.249322359666848,
   "first": false,
   "plan": "GETTING READY"
 }
