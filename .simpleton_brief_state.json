@@ -587,7 +587,7 @@
     },
     {
       "date": "2026-10-03",
-      "price": 85146.3,
+      "price": 84664.2,
       "cheap": "cheap",
       "cycle_buy": 4,
       "cycle_total": 7,
@@ -596,7 +596,7 @@
       "stocks_n": 3,
       "stocks_total": 10,
       "qqq_tier": "CAUTION",
-      "semis_tier": "INTACT",
+      "semis_tier": "WEAKENING",
       "plan": "GETTING READY",
       "regime": "LATE_CYCLE"
     }
