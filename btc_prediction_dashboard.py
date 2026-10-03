@@ -6693,9 +6693,12 @@ with tab_onchain:
                 continue
             score = sig.get("score")
             val = sig.get("value")
-            pro_scores.append(score) if score is not None else None
+            # A statement, not a bare `x.append(s) if ... else None` expression:
+            # Streamlit "magic" renders bare expressions, which printed "None" x10.
+            if score is not None:
+                pro_scores.append(score)
             val_str = f"{val:.3f}" if isinstance(val, (int, float)) else str(val)[:14]
-            emo = ("●●" if score > 0.5 else "●" if score > 0.2
+            emo = ("" if score is None else "●●" if score > 0.5 else "●" if score > 0.2
                    else "○" if score > -0.2 else "▼" if score > -0.5 else "▼▼")
             pro_rows.append({
                 "Signal": display,
