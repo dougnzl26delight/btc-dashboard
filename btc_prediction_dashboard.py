@@ -6187,8 +6187,21 @@ with tab_cycle:
     # ──────────────────────────────────────────────────────────────
     # 📈 CYCLE TIMELINE — prominent headline visual + Olson bottom figures
     # ──────────────────────────────────────────────────────────────
-    st.markdown("<div class='section-header'>📈 Cycle Timeline — where we are and the bottom ahead</div>",
-                unsafe_allow_html=True)
+    try:
+        from core.dashboard_cache import get_cached as _gct
+        _bst_tl = _gct("bottom_status") or {}
+    except Exception:
+        _bst_tl = {}
+    _tl_low_in = _bst_tl.get("status") == "LOW_PROBABLY_IN" and bool(_bst_tl.get("low"))
+    st.markdown("<div class='section-header'>📈 Cycle Timeline — where we are and "
+                + ("what the timing models projected" if _tl_low_in else "the bottom ahead")
+                + "</div>", unsafe_allow_html=True)
+    if _tl_low_in:
+        st.caption(_md_dollars(
+            f"Price check: the cycle low is probably already in — ${_bst_tl['low']:,.0f} on "
+            f"{_bst_tl.get('low_date_txt', _bst_tl.get('low_date', ''))} (see *has the bottom happened?* "
+            f"on the Today tab). The targets and dates below are the timing models' projections, "
+            f"kept for reference."))
 
     def _fmt_date(_s, _fmt):
         try:
