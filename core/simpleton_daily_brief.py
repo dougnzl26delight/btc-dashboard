@@ -215,6 +215,40 @@ def build_daily_brief() -> dict:
     return _write(today, lines, summary, btc24, first=False)
 
 
+def load_freshest_brief() -> dict | None:
+    """The brief to SHOW: the freshest of the panel cache (live-data blob or
+    committed pickle) and the committed JSON. Read-only - never builds or writes,
+    so it is safe on Streamlit Cloud.
+
+    The dashboard used to read only the committed JSON, so when the Cloud checkout
+    froze (2026-08-17 -> found 2026-10-04) the public "Today's update" showed a
+    47-day-old note (BTC $64,240) while every live-blob panel around it was fresh.
+    """
+    cands = []
+    try:
+        from core.dashboard_cache import get_cached
+        b = get_cached("simpleton_brief")
+        if isinstance(b, dict) and b.get("lines"):
+            cands.append(b)
+    except Exception:
+        pass
+    try:
+        if OUT.exists():
+            b = json.loads(OUT.read_text(encoding="utf-8"))
+            if isinstance(b, dict) and b.get("lines"):
+                cands.append(b)
+    except Exception:
+        pass
+
+    def _ts(b: dict) -> float:
+        try:
+            return datetime.fromisoformat(str(b.get("generated_local"))).timestamp()
+        except Exception:
+            return 0.0
+
+    return max(cands, key=_ts) if cands else None
+
+
 def _write(today, lines, summary, btc24, first) -> dict:
     out = {
         "generated_local": _now_nz().isoformat(),

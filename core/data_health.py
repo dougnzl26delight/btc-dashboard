@@ -50,6 +50,32 @@ _CANONICAL_TOTALS = {
 }
 
 
+# Deploy-snapshot check. Every age above comes from cache_age_seconds(), which
+# reads the FRESHER of the live-data blob and the committed pickle, so a Cloud
+# checkout that stops updating is invisible there: data still looks fresh while
+# the app runs old code and reads old committed files. 2026-10-04: the Streamlit
+# Cloud checkout had been frozen at a 2026-08-17 commit for 7 weeks (four
+# dashboard code changes never went live; the public "Today's update" still said
+# BTC $64,240) while this badge read ALL FRESH. The panel pickles are re-committed
+# hourly (6h GitHub fallback), so the DISK pickle's own timestamp is the age of
+# the checkout the app is actually running. Only meaningful inside Streamlit -
+# offline callers (risk_index_alert, precompute) read the local working tree.
+_DEPLOY_PROBE_KEY = "cycle_dials"
+_DEPLOY_BUDGET_H = 8
+
+
+def _deploy_snapshot_age_h():
+    """Hours since the on-disk (committed) probe pickle was computed, or None."""
+    try:
+        from core.dashboard_cache import _load_disk
+        d = _load_disk(_DEPLOY_PROBE_KEY)
+        if d:
+            return (time.time() - float(d[0])) / 3600.0
+    except Exception:
+        pass
+    return None
+
+
 def _scorecard_total(key: str, v: dict):
     if not isinstance(v, dict):
         return None
@@ -97,7 +123,18 @@ def data_health() -> dict:
                 if "unavail" in stt or "data gap" in stt or "data_gap" in stt:
                     dead.append({"key": k, "label": c.get("label", "?")})
 
-    if n_stale or n_missing:
+    deploy_age_h = None
+    try:
+        from core.dashboard_cache import _streamlit_active
+        if _streamlit_active():
+            deploy_age_h = _deploy_snapshot_age_h()
+    except Exception:
+        pass
+    deploy_stale = deploy_age_h is not None and deploy_age_h > _DEPLOY_BUDGET_H
+
+    if deploy_stale:
+        verdict, color = "DEPLOY STALE", "#ef4444"
+    elif n_stale or n_missing:
         verdict, color = "STALE DATA", "#ef4444"
     elif drift:
         verdict, color = "DENOMINATOR DRIFT", "#ef4444"
@@ -111,6 +148,7 @@ def data_health() -> dict:
         "n_tracked": len(_TRACKED_KEYS),
         "n_stale": n_stale, "n_aging": n_aging, "n_missing": n_missing,
         "drift": drift, "dead_feeds": dead, "items": items,
+        "deploy_age_h": deploy_age_h, "deploy_budget_h": _DEPLOY_BUDGET_H,
         "ts": time.time(),
     }
 

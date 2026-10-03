@@ -1555,7 +1555,17 @@ with tab_research:   # back to Guru Panel content
             f"<span style='font-size:11px; color:#aaa; margin-left:10px;'>"
             f"{_dh.get('n_tracked', 0)} indicators · {_dh.get('n_stale', 0)} stale · "
             f"{_dh.get('n_aging', 0)} aging · {len(_dh.get('dead_feeds', []))} dead · "
-            f"{len(_dh.get('drift', []))} drift</span></div>", unsafe_allow_html=True)
+            f"{len(_dh.get('drift', []))} drift"
+            + (f" · deployed snapshot {_dh['deploy_age_h']:.1f}h old"
+               if _dh.get("deploy_age_h") is not None else "")
+            + "</span></div>", unsafe_allow_html=True)
+        if _dh.get("verdict") == "DEPLOY STALE":
+            st.error(
+                f"DEPLOY STALE — the code and committed files this app is running are "
+                f"{_dh.get('deploy_age_h', 0):.0f}h old (budget {_dh.get('deploy_budget_h', 8)}h): "
+                "the hosting checkout has stopped updating. Live-blob panels still refresh, "
+                "but code changes and committed files since then are NOT live. "
+                "Fix: reboot the app on share.streamlit.io.")
         with st.expander("🩺 Per-indicator freshness (every cache: age vs budget)"):
             if _dh.get("drift"):
                 st.error("DENOMINATOR DRIFT — a scorecard total changed and labels need updating: "
@@ -5865,11 +5875,9 @@ with tab_simple:
     st.markdown("#### 📅 Today's update — what changed in the last 24 hours")
     _brief = None
     try:
-        from pathlib import Path as _BP
-        import json as _bjson
-        _bpath = _BP(__file__).resolve().parent / ".simpleton_daily_brief.json"
-        if _bpath.exists():
-            _brief = _bjson.loads(_bpath.read_text(encoding="utf-8"))
+        # Freshest of live blob / committed pickle / committed JSON (read-only).
+        from core.simpleton_daily_brief import load_freshest_brief
+        _brief = load_freshest_brief()
     except Exception:
         _brief = None
     if _brief and _brief.get("lines"):
@@ -7714,9 +7722,18 @@ with tab_exit:
 
 
 # === Footer ===
+# "Deployed snapshot" = age of the committed files this app is running (see
+# core.data_health DEPLOY STALE). Hours old is normal; days old = frozen deploy.
+try:
+    from core.data_health import _deploy_snapshot_age_h
+    _dsa = _deploy_snapshot_age_h()
+    _dep = "?" if _dsa is None else f"{_dsa:.1f}h old"
+except Exception:
+    _dep = "?"
 st.markdown(
     "<div style='text-align:center; margin-top:30px; font-size:11px; color:#888;'>"
     f"BTC Prediction Engine • Last update: {state.get('as_of', '?')[:19]} • "
+    f"Deployed snapshot: {_dep} • "
     "Cache: 4h disk + 5min Streamlit"
     "</div>",
     unsafe_allow_html=True,
