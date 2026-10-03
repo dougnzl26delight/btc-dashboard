@@ -95,10 +95,22 @@ def campaign_thesis_check() -> dict:
     if rpx and px:
         above = px / rpx - 1
         status = "WARNING" if (above > 0.60 and bot_n < 6) else "INTACT"
+        # 2026-10-04: the old text claimed the BTC-LED BACKSTOP was "the safety net for
+        # exactly this". It is not: the backstop only fires if price comes back DOWN into
+        # its zone, so it can never buy a low that already happened while price rises
+        # (this cycle's lowest print, $57.8k on 2026-07-01, missed the $57k zone by $800).
+        # Text-only fix — the pre-registered trip rule above is unchanged.
+        try:
+            from core.rotation_trigger import BTC_PRICE_TARGET as _bs_zone
+            _zone = f"<= ${_bs_zone:,}"
+        except Exception:
+            _zone = "its bottom zone"
         add("Bottom may have already passed", status,
             "If BTC sits well above the market's cost basis and is rising, yet the bottom scorecard "
-            "never confirmed, the low may have been shallower than expected and already happened — "
-            "the BTC-LED BACKSTOP is the safety net for exactly this.",
+            "never confirmed, the low may have been shallower than expected and already happened. "
+            f"The BTC-LED BACKSTOP does NOT cover this: it only fires if price comes back DOWN to "
+            f"{_zone}, so it cannot buy a low that has already passed — that needs an explicit "
+            "decision, not a wait.",
             f"BTC {above*100:+.0f}% above realized price ${rpx:,.0f}; scorecard {bot_n}/{bot_tot}")
 
     # 5. THESIS DECAY BY ATTRITION — the shallow grind that dissolves a point-bottom
