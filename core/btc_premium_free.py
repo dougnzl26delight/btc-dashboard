@@ -132,6 +132,26 @@ def _http_json(url: str, **kw) -> Optional[dict]:
 # TIER 1.1 — ETF FLOWS (Farside Investors)
 # ============================================================
 
+def farside_total_series(df: "pd.DataFrame") -> "pd.Series":
+    """Daily net-flow column ($M) from a Farside table, signs preserved.
+
+    Farside writes outflows in accounting brackets: "(148.7)" = -148.7. The old
+    parsers stripped every non-digit except "-", so brackets vanished and every
+    OUTFLOW day was summed as an INFLOW (found 2026-10-04: 30 Sep -$148.7M read
+    as +$148.7M; the 5-day total showed +$380M instead of +$83M). Summary rows
+    (all-time cumulative, avg/max/min) are dropped by magnitude: real daily net
+    flow tops out ~$1-2B, so |x| > 3000 is not a day.
+    """
+    total_col = next((c for c in df.columns if "total" in str(c).lower()), None)
+    if total_col is None:
+        return pd.Series(dtype=float)
+    raw = df[total_col].astype(str).str.strip()
+    neg = raw.str.startswith("(") | raw.str.match(r"^-\s*\d")
+    num = pd.to_numeric(raw.str.replace(r"[^\d\.]", "", regex=True), errors="coerce")
+    col = num.where(~neg, -num).dropna()
+    return col[col.abs() <= 3000]
+
+
 def etf_flows() -> Optional[dict]:
     """Aggregated US spot BTC ETF net daily flows (millions USD).
 
@@ -151,26 +171,14 @@ def etf_flows() -> Optional[dict]:
         tables = pd.read_html(io.StringIO(body))
         if not tables: return None
         df = max(tables, key=len)
-        # Heuristic: find a "Total" column (case insensitive)
-        total_col = None
-        for c in df.columns:
-            if "total" in str(c).lower():
-                total_col = c
-                break
-        if total_col is None:
-            return None
         # 2026-07-07 factual audit: Farside appends SUMMARY rows (all-time
         # cumulative ~$50B, plus Average/Maximum/Minimum). The old code took
         # df.tail(30) WITHOUT stripping them, so the ~$50B cumulative row landed
         # inside the 5-day window -> the verdict card showed "+$53,926M (5d)"
-        # (a $54B week, ~50x reality). Coerce the WHOLE column, drop non-daily
-        # magnitudes (real daily net flow tops out ~$1-2B; |x|>3000 = a summary
-        # row), THEN window. Matches btc_etf_regime_detector's filter.
-        col = pd.to_numeric(
-            df[total_col].astype(str).str.replace(r"[^\d\.\-]", "", regex=True),
-            errors="coerce",
-        ).dropna()
-        col = col[col.abs() <= 3000]   # strip summary rows
+        # (a $54B week, ~50x reality). farside_total_series coerces the WHOLE
+        # column (keeping bracketed outflows negative), drops summary rows, THEN
+        # we window. Shared with btc_etf_regime_detector.
+        col = farside_total_series(df)
         if col.empty:
             return None
         last_5 = float(col.tail(5).sum())

@@ -5264,7 +5264,8 @@ with tab_playbook:   # <- 2026-07-04 review fix: the deploy trigger IS execution
         st.markdown(metric_card(
             "ETF status",
             trigger["etf_status"].replace("_", " "),
-            f"5d: ${trigger['etf_5d_M']:+,.0f}M | 30d: ${trigger['etf_30d_M']:+,.0f}M",
+            ("Farside feed unavailable" if trigger["etf_status"] == "UNKNOWN" else
+             f"5d: ${trigger['etf_5d_M']:+,.0f}M | 30d: ${trigger['etf_30d_M']:+,.0f}M"),
             etf_color,
         ), unsafe_allow_html=True)
         st.markdown(metric_card(
@@ -5719,6 +5720,12 @@ with tab_playbook:   # <- 2026-07-04 review fix: the deploy trigger IS execution
                    else C["neutral"] if score > -0.2 else C["bear"] if score > -0.5
                    else C["deep_bear"])
             if sig_name == "etf_flows":
+                if "last_5d_M" not in sig:
+                    # The IBIT volume proxy shares this key but carries no $
+                    # flows - showing its missing fields as $0 read as "flat".
+                    st.markdown(metric_card(label, "—", "Farside feed unavailable", C["muted"]),
+                                unsafe_allow_html=True)
+                    continue
                 disp_val = f"${sig.get('last_5d_M', 0):+,.0f}M"
                 disp_sub = f"5d total ({sig.get('last_30d_M', 0):+,.0f}M 30d)"
             elif sig_name == "stablecoin_supply":

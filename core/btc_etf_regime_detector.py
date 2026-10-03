@@ -69,17 +69,10 @@ def _etf_flows_history() -> Optional[pd.DataFrame]:
         if not tables:
             return None
         df = max(tables, key=len)
-        total_col = next((c for c in df.columns if "total" in str(c).lower()), None)
-        if total_col is None:
-            return None
-        flows = pd.to_numeric(
-            df[total_col].astype(str).str.replace(r"[^\d\.\-]", "", regex=True),
-            errors="coerce",
-        ).dropna()
-        # Farside appends summary rows (cumulative all-time ~$50B, plus avg/max/
-        # min). Real daily net flow is at most a few $B, so drop implausible
-        # magnitudes — otherwise the cumulative row poisons the windowed sums.
-        flows = flows[flows.abs() <= 3000]
+        # Shared parser: keeps bracketed OUTFLOWS negative (the old regex turned
+        # "(148.7)" into +148.7) and drops Farside's summary rows by magnitude.
+        from core.btc_premium_free import farside_total_series
+        flows = farside_total_series(df)
         if flows.empty:
             return None
         return pd.DataFrame({"flow_M": flows.values})

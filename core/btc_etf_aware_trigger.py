@@ -85,13 +85,19 @@ def etf_aware_bottom_trigger(state: Optional[dict] = None) -> dict:
     etf_sig = None
     for cat in ("flows", "fundamentals"):
         d = state.get("signals", {}).get(cat, {}).get("etf_flows")
-        if isinstance(d, dict) and not d.get("error"):
+        # Only the Farside read carries real $ flows. The IBIT volume proxy
+        # (btc_advanced_signals) shares the "etf_flows" key and has no
+        # last_5d_M; reading it as 0 put "ETF flows $+0M 5d" / "ETF flat" on the
+        # verdict card whenever Farside failed (e.g. every GitHub-runner build).
+        if isinstance(d, dict) and not d.get("error") and "last_5d_M" in d:
             etf_sig = d
             break
     etf_last_5d = etf_sig.get("last_5d_M", 0) if etf_sig else 0
     etf_last_30d = etf_sig.get("last_30d_M", 0) if etf_sig else 0
     etf_last_day = etf_sig.get("last_day_M", 0) if etf_sig else 0
     etf_status = _classify_etf_flow(etf_last_5d, etf_last_30d) if etf_sig else "UNKNOWN"
+    etf_txt = (f"ETF flows ${etf_last_5d:+,.0f}M 5d" if etf_sig
+               else "ETF flows n/a (Farside feed down)")
 
     # Clemente+Alden layer average (15 signals — institutional bottom indicators)
     ca_sig_names = [
@@ -176,16 +182,21 @@ def etf_aware_bottom_trigger(state: Optional[dict] = None) -> dict:
                              "(only if scorecard reaches 6+/8)."),
         }
 
-    if n_met >= 5 and etf_status in ("POSITIVE", "STRONG_POSITIVE", "FLAT"):
+    # UNKNOWN (Farside down) keeps the decision it had when an outage read as
+    # FLAT - the smaller 1A size - so a feed blip can't suppress or enlarge a
+    # deploy; only the wording admits the ETF read is missing.
+    if n_met >= 5 and etf_status in ("POSITIVE", "STRONG_POSITIVE", "FLAT", "UNKNOWN"):
         return {
             "trigger_id": "1A",
             "trigger_name": "TRIGGER 1A — SHALLOW ETF-ERA BOTTOM",
             "verdict_label": "SCALE IN 50%",
             "deploy_pct": 50,
             "color": "#66bb6a",      # lighter green
-            "rationale": (f"{n_met}/{n_total} hard criteria with ETF inflows still "
+            "rationale": ((f"{n_met}/{n_total} hard criteria with ETF inflows still "
                            f"absorbing supply (${etf_last_5d:+,.0f}M 5d). Bottom "
-                           f"likely shallow due to institutional wall. Deploy 50%."),
+                           f"likely shallow due to institutional wall. Deploy 50%.") if etf_sig else
+                          (f"{n_met}/{n_total} hard criteria; {etf_txt}, so 1A vs 1B can't be "
+                           f"told apart — the smaller 1A size applies. Deploy 50%.")),
             "entry_zone": "$60-70k expected",
             "scorecard": sc,
             "etf_status": etf_status,
@@ -221,7 +232,7 @@ def etf_aware_bottom_trigger(state: Optional[dict] = None) -> dict:
             "deploy_pct": 0,
             "color": "#f0b90b",      # yellow
             "rationale": (f"{n_met}/{n_total} hard criteria — some signals firing but "
-                           f"not enough to deploy. ETF flows ${etf_last_5d:+,.0f}M 5d. "
+                           f"not enough to deploy. {etf_txt}. "
                            f"Capital should be liquid and ready."),
             "entry_zone": "Watching for trigger",
             "scorecard": sc,
@@ -240,9 +251,9 @@ def etf_aware_bottom_trigger(state: Optional[dict] = None) -> dict:
         "deploy_pct": 0,
         "color": "#ef5350",      # red
         "rationale": (f"{n_met}/{n_total} hard criteria — cost basis not capitulated. "
-                       f"ETF flows ${etf_last_5d:+,.0f}M 5d "
-                       f"({'institutional bull' if etf_last_5d > 0 else 'flat/negative'}). "
-                       f"Cash is a position."),
+                       + (f"{etf_txt} ({'institutional bull' if etf_last_5d > 0 else 'flat/negative'}). "
+                          if etf_sig else f"{etf_txt}. ")
+                       + "Cash is a position."),
         "entry_zone": "No actionable zone yet",
         "scorecard": sc,
         "etf_status": etf_status,

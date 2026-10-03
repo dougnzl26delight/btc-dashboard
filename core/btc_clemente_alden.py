@@ -312,26 +312,21 @@ def etf_pct_of_supply() -> Optional[dict]:
         >15% = cycles likely broken, BTC trades like macro reserve asset
     """
     try:
-        # Cumulative ETF holdings from Farside
-        url = "https://farside.co.uk/btc/"
+        # Cumulative net flows since launch (Jan 2024) in $M = the sum of every
+        # daily row on Farside's all-data page. (2026-10-04: this used to sum the
+        # /btc/ page's ~14 recent rows PLUS its summary rows, with bracketed
+        # outflows read as inflows - right only because the all-time row
+        # dominated the sum.)
+        url = "https://farside.co.uk/bitcoin-etf-flow-all-data/"
         body = _http_get(url, ttl=21600)
         if not body: return None
-        # Look for cumulative inflow text in the page
         tables = pd.read_html(io.StringIO(body))
         if not tables: return None
         df = max(tables, key=len)
-        total_col = None
-        for c in df.columns:
-            if "total" in str(c).lower():
-                total_col = c
-                break
-        if total_col is None: return None
-        # Cumulative net flows since launch (Jan 2024) in $M
-        recent = df[total_col].dropna()
-        cum_flow_M = pd.to_numeric(
-            recent.astype(str).str.replace(r"[^\d\.\-]", "", regex=True),
-            errors="coerce",
-        ).sum()
+        from core.btc_premium_free import farside_total_series
+        daily = farside_total_series(df)
+        if daily.empty: return None
+        cum_flow_M = float(daily.sum())
         # Estimate BTC holdings: assume average accumulation price ~$70k
         # (rough; varies through the period)
         avg_acc_price = 70000
