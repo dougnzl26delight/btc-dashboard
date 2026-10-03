@@ -35,11 +35,13 @@ def _btc_history(period: str = "max") -> Optional[pd.DataFrame]:
 
 
 def _cm(metric: str, days: int = 1460) -> Optional[pd.Series]:
+    # Via btc_advanced_proxies._cm: CoinMetrics' free tier now returns 0 rows for
+    # CapRealUSD, which it derives as market cap / MVRV. Calling CoinMetrics
+    # directly left Cap Models + HODL Waves (est) "unavailable" (2026-10-04).
     try:
-        from core.btc_pro_signals import _cm as _coinmetrics
-        df = _coinmetrics(metric, days=days)
-        if df is None or df.empty: return None
-        return df.iloc[:, 0]
+        from core.btc_advanced_proxies import _cm as _cm_fallback
+        s = _cm_fallback(metric, days=days)
+        return s if s is not None and len(s) else None
     except Exception:
         return None
 
@@ -225,15 +227,17 @@ def cap_models() -> dict:
     Top Cap    = Average Cap × 35
     """
     rc = _cm("CapRealUSD", days=400)
-    mc = _cm("CapMrktCurUSD", days=400)
-    if rc is None or mc is None:
+    mc = _cm("CapMrktCurUSD", days=7000)       # lifetime: free back to 2010
+    if rc is None or mc is None or len(mc) < 3000:
         return {"error": "data unavailable"}
     realized = float(rc.iloc[-1])
     market = float(mc.iloc[-1])
-    # Average Cap = (Realized + Market) / 2 approx
-    avg_cap = (realized + market) / 2
-    # Supply approximation
-    SUPPLY = 19_700_000  # ~current circulating BTC
+    # Average Cap (Woo) = lifetime mean of daily market cap. It used to be
+    # approximated as (realized + market) / 2, which put Top Cap at ~$2.5M/BTC
+    # once the panel came back to life on 2026-10-04 (proper: ~$0.75M).
+    avg_cap = float(mc.mean())
+    sup = _cm("SplyCur", days=10)
+    SUPPLY = float(sup.iloc[-1]) if sup is not None and len(sup) else 19_700_000
     bottom_cap_price = (realized * 0.2) / SUPPLY
     top_cap_price = (avg_cap * 35) / SUPPLY
     price = _live_btc_price()

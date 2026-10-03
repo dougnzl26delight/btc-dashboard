@@ -114,7 +114,9 @@ def data_health() -> dict:
 
     # Dead-feed scan (paywalled/unavailable criteria)
     dead = []
-    for k in ("btc_native_bottom_scorecard", "top_scorecard"):
+    # btc_native_top_scorecard added 2026-10-04: 3 of its 16 criteria had read
+    # "data unavailable" for an unknown time without this badge noticing.
+    for k in ("btc_native_bottom_scorecard", "top_scorecard", "btc_native_top_scorecard"):
         v = get_cached(k) or {}
         sc = v.get("scorecard", v) if isinstance(v, dict) else {}
         for c in (sc.get("criteria") or []):

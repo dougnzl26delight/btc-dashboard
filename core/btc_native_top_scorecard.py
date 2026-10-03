@@ -53,11 +53,14 @@ def _btc_history(period: str = "max") -> Optional[pd.DataFrame]:
 
 
 def _cm(metric: str, days: int = 1460) -> Optional[pd.Series]:
+    # Via btc_advanced_proxies._cm for its free-tier fallbacks: CoinMetrics'
+    # community API now returns 0 rows for CapRealUSD, so realized cap is DERIVED
+    # as market cap / MVRV (both free). Calling CoinMetrics directly left 3 of 16
+    # top criteria reading "data unavailable" (found 2026-10-04).
     try:
-        from core.btc_pro_signals import _cm as _coinmetrics
-        df = _coinmetrics(metric, days=days)
-        if df is None or df.empty: return None
-        return df.iloc[:, 0]
+        from core.btc_advanced_proxies import _cm as _cm_fallback
+        s = _cm_fallback(metric, days=days)
+        return s if s is not None and len(s) else None
     except Exception:
         return None
 
@@ -125,10 +128,14 @@ def mvrv_z_extreme() -> dict:
 
 
 def puell_extreme() -> dict:
-    """Puell Multiple = daily miner revenue / 365d MA. > 2.5 historically signals top."""
-    rev = _cm("RevUSD", days=1460)
+    """Puell Multiple = daily issuance (USD) / 365d MA. > 2.5 historically signals top.
+
+    Issuance is the standard Puell input (and what btc_pro_signals.puell_multiple
+    uses for the bottom side). RevUSD returns 0 rows on CoinMetrics' free tier,
+    so this criterion read "miner revenue unavailable" until 2026-10-04."""
+    rev = _cm("IssTotUSD", days=1460)
     if rev is None or len(rev) < 365:
-        return {"met": False, "status": "miner revenue unavailable"}
+        return {"met": False, "status": "miner issuance unavailable"}
     ma_365 = rev.rolling(365, min_periods=30).mean()
     puell = rev / ma_365
     now = float(puell.iloc[-1])

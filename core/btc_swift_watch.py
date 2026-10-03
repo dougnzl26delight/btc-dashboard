@@ -46,11 +46,13 @@ def _btc_history(period: str = "max") -> Optional[pd.DataFrame]:
 
 
 def _cm(metric: str, days: int = 3650) -> Optional[pd.Series]:
+    # Via btc_advanced_proxies._cm for its free-tier fallbacks (CapRealUSD is
+    # derived as market cap / MVRV). RevUSD has no free source - Thermocap stays
+    # "data unavailable" rather than being faked from issuance alone.
     try:
-        from core.btc_pro_signals import _cm as _coinmetrics
-        df = _coinmetrics(metric, days=days)
-        if df is None or df.empty: return None
-        return df.iloc[:, 0]
+        from core.btc_advanced_proxies import _cm as _cm_fallback
+        s = _cm_fallback(metric, days=days)
+        return s if s is not None and len(s) else None
     except Exception:
         return None
 
