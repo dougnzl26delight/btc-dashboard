@@ -59,6 +59,44 @@ def _rot_step(st: dict | None, raw) -> tuple[dict, tuple | None]:
     return s, None
 
 
+# Verdict-change email debounce (2026-10-04, Dave: "debounce the verdict emails
+# too"). It sent ~41 emails Sep 1 - Oct 3, often in hourly bursts as fields
+# flickered, and nearly all were binned unread. Now:
+#   1. a field's new value counts only after holding VERDICT_CONFIRM_RUNS runs;
+#   2. emails are spaced by severity - INFO <=1/24h, HIGH <=1/6h, URGENT as soon
+#      as confirmed;
+#   3. while held, the diff stays "vs the last email", so a change that reverts
+#      inside the wait never sends anything (a net digest, not a replay).
+VERDICT_STATE_FILE = REPO / ".risk_index_verdict_debounce.json"
+VERDICT_FIELDS = ("risk_zone", "top_level", "bottom_level", "regime", "btc_state",
+                  "qqq_olson_tier", "rotation_trigger_status", "semis_tier",
+                  "scale_out_tier", "olson_btc_target_status", "data_health")
+VERDICT_CONFIRM_RUNS = 2
+VERDICT_MIN_GAP_S = {"URGENT": 0, "HIGH": 6 * 3600, "INFO": 24 * 3600}
+
+
+def _verdict_confirm(vs: dict | None, prev: dict, curr: dict) -> tuple[dict, dict]:
+    """Pure: per-field streaks -> (new debounce state, curr with unconfirmed
+    verdict fields held at their last-emailed value)."""
+    streaks = dict((vs or {}).get("streaks") or {})
+    confirmed = dict(curr)
+    for f in VERDICT_FIELDS:
+        v = curr.get(f)
+        s = streaks.get(f)
+        n = (int(s.get("n", 0)) + 1) if (s and s.get("v") == v) else 1
+        streaks[f] = {"v": v, "n": n}
+        if n < VERDICT_CONFIRM_RUNS:
+            confirmed[f] = prev.get(f)
+    out = dict(vs or {})
+    out["streaks"] = streaks
+    return out, confirmed
+
+
+def _verdict_send_due(severity: str, last_email_ts: float, now: float) -> bool:
+    gap = VERDICT_MIN_GAP_S.get(severity, VERDICT_MIN_GAP_S["INFO"])
+    return now - float(last_email_ts or 0) >= gap
+
+
 def _rot_email_due(s: dict, flip: tuple | None, now: float) -> str | None:
     """Which rotation email (if any) a confirmed flip warrants: 'FIRED' | 'WARMING'."""
     if not flip:
@@ -326,7 +364,10 @@ def _diff(prev: dict, curr: dict) -> list[str]:
 
 def _severity(diffs: list[str]) -> str:
     """Decide email severity for subject line emoji."""
-    if any("**" in d and "ESCALATED" in d for d in diffs): return "URGENT"
+    # Whole word: "DEESCALATED" contains "ESCALATED", which made every calming
+    # risk-zone move URGENT (and, since 2026-10-04, let it skip the cooldown).
+    import re
+    if any("**" in d and re.search(r"\bESCALATED\b", d) for d in diffs): return "URGENT"
     if any("**" in d for d in diffs):                       return "HIGH"
     if diffs:                                                return "INFO"
     return "QUIET"
@@ -432,12 +473,40 @@ def main():
         }}))
         return
 
-    diffs = _diff(prev, curr)
+    # Verdict debounce (see VERDICT_* above): diff against CONFIRMED values only.
+    try:
+        _vs_prev = (json.loads(VERDICT_STATE_FILE.read_text())
+                    if VERDICT_STATE_FILE.exists() else None)
+    except Exception:
+        _vs_prev = None
+    _vs, confirmed = _verdict_confirm(_vs_prev, prev, curr)
+    if "last_email_ts" not in _vs:
+        # First run of the debounce: STATE_FILE is only written when a verdict
+        # email goes out, so its mtime IS the last email time.
+        try:
+            _vs["last_email_ts"] = STATE_FILE.stat().st_mtime
+        except Exception:
+            _vs["last_email_ts"] = 0
+    try:
+        VERDICT_STATE_FILE.write_text(json.dumps(_vs, indent=2, default=str))
+    except Exception:
+        pass
+
+    diffs = _diff(prev, confirmed)
     if not diffs:
         print(json.dumps({"status": "unchanged", "checks_run": 5}))
         return
 
     severity = _severity(diffs)
+    _now_ts = datetime.now(timezone.utc).timestamp()
+    if not _verdict_send_due(severity, _vs.get("last_email_ts", 0), _now_ts):
+        # Held: prev stays "as last emailed", so these changes roll into the next
+        # allowed email as a net digest (and vanish if they revert meanwhile).
+        print(json.dumps({"status": "held_cooldown", "severity": severity,
+                          "n_diffs": len(diffs),
+                          "next_allowed_in_h": round((VERDICT_MIN_GAP_S.get(severity, 0)
+                              - (_now_ts - float(_vs.get("last_email_ts", 0) or 0))) / 3600, 1)}))
+        return
 
     # Live BTC price for context
     btc_price = "n/a"
@@ -520,7 +589,14 @@ def main():
         from ops.alerts import alert
         level = "warning" if severity in ("URGENT", "HIGH") else "info"
         alert(body, level=level, subject=subject, email=True)
-        _save(curr)
+        # Save the CONFIRMED values as "last emailed": an unconfirmed flicker in
+        # curr must not become the baseline the next diff is measured from.
+        _save(confirmed)
+        _vs["last_email_ts"] = _now_ts
+        try:
+            VERDICT_STATE_FILE.write_text(json.dumps(_vs, indent=2, default=str))
+        except Exception:
+            pass
         print(json.dumps({"status": "email_sent", "severity": severity,
                             "n_diffs": len(diffs)}))
     except Exception as e:
