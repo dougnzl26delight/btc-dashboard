@@ -27,6 +27,50 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 REPO = Path(__file__).resolve().parent.parent
 STATE_FILE = REPO / ".risk_index_alert_state.json"
 
+# Rotation-email debounce (2026-10-04). The EXECUTE and WARMING emails used to
+# fire on every raw edge of the rotation trigger, which flaps: Sep 4-25 that sent
+# 3 "EXECUTE EQUITY -> BTC TODAY" + 8 "[WARMING 1/4]" emails, all binned, 10
+# never opened. A new trigger status must now hold ROT_CONFIRM_RUNS hourly runs,
+# each email type goes out at most once per ROT_COOLDOWN_S, and a FIRED -> WARMING
+# stand-down no longer sends the "first equity-stress signal tripped" email.
+# Kept in its own file so the verdict-change email's state logic is untouched.
+ROT_STATE_FILE = REPO / ".risk_index_rotation_debounce.json"
+ROT_CONFIRM_RUNS = 2
+ROT_COOLDOWN_S = 7 * 86400
+
+
+def _rot_step(st: dict | None, raw) -> tuple[dict, tuple | None]:
+    """Pure debounce of the rotation trigger STATUS -> (state, (old, new) | None).
+    A missing state baselines silently to the current reading."""
+    if not st or "confirmed" not in st:
+        return {"confirmed": raw, "cand": None, "cand_n": 0, "sent": {}}, None
+    s = dict(st)
+    if raw == s["confirmed"]:
+        s["cand"], s["cand_n"] = None, 0
+        return s, None
+    if s.get("cand") == raw:
+        s["cand_n"] = int(s.get("cand_n", 0)) + 1
+    else:
+        s["cand"], s["cand_n"] = raw, 1
+    if s["cand_n"] >= ROT_CONFIRM_RUNS:
+        old = s["confirmed"]
+        s["confirmed"], s["cand"], s["cand_n"] = raw, None, 0
+        return s, (old, raw)
+    return s, None
+
+
+def _rot_email_due(s: dict, flip: tuple | None, now: float) -> str | None:
+    """Which rotation email (if any) a confirmed flip warrants: 'FIRED' | 'WARMING'."""
+    if not flip:
+        return None
+    old, new = flip
+    sent = s.get("sent") or {}
+    if new == "FIRED" and now - float(sent.get("FIRED", 0)) > ROT_COOLDOWN_S:
+        return "FIRED"
+    if new == "WARMING" and old != "FIRED" and now - float(sent.get("WARMING", 0)) > ROT_COOLDOWN_S:
+        return "WARMING"
+    return None
+
 
 # Zone severity ranking — used to determine "escalation vs de-escalation"
 RISK_ZONE_RANK = {
@@ -355,22 +399,28 @@ def main():
     curr = _capture_state()
     prev = _load_last()
 
-    # ===== CRITICAL: ROTATION TRIGGER detection =====
-    # If prev was not-fired and curr IS fired -> send the big rotation email
-    # immediately, separately from the normal change-log email below.
-    if prev is not None:
-        was_fired = prev.get("rotation_fired", False)
-        is_fired = curr.get("rotation_fired", False)
-        if is_fired and not was_fired:
-            _send_big_rotation_email()
+    # ===== CRITICAL: ROTATION TRIGGER detection (debounced, see ROT_* above) =====
+    # Separate from the normal change-log email below. EXECUTE on a CONFIRMED
+    # flip into FIRED; the WARMING heads-up only on a confirmed ARMED -> WARMING
+    # (the first equity signal tripping), never on a stand-down from FIRED.
+    try:
+        _rs_prev = json.loads(ROT_STATE_FILE.read_text()) if ROT_STATE_FILE.exists() else None
+    except Exception:
+        _rs_prev = None
+    _rs, _flip = _rot_step(_rs_prev, curr.get("rotation_trigger_status"))
+    _due = _rot_email_due(_rs, _flip, datetime.now(timezone.utc).timestamp())
+    if _due:
+        _ok = _send_big_rotation_email() if _due == "FIRED" else _send_warming_email(curr)
+        if _ok:
+            _rs.setdefault("sent", {})[_due] = datetime.now(timezone.utc).timestamp()
         else:
-            # EARLY WARNING: first equity signal trips (ARMED -> WARMING).
-            # Edge-triggered on the transition INTO warming, so it won't re-send
-            # every hour while it sits at 1/4. Not the execute signal — earlier eyes.
-            was_warming = prev.get("rotation_trigger_status") == "WARMING"
-            is_warming  = curr.get("rotation_trigger_status") == "WARMING"
-            if is_warming and not was_warming:
-                _send_warming_email(curr)
+            # Not delivered: keep the flip pending so the next run retries.
+            _rs = dict(_rs_prev or {})
+            _rs["cand"], _rs["cand_n"] = curr.get("rotation_trigger_status"), ROT_CONFIRM_RUNS - 1
+    try:
+        ROT_STATE_FILE.write_text(json.dumps(_rs, indent=2, default=str))
+    except Exception:
+        pass
 
     if prev is None:
         # First observation -- baseline only, no email
