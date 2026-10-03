@@ -46,6 +46,42 @@ def _safe_plotly_chart(figure_or_data=None, *args, **kwargs):
 
 st.plotly_chart = _safe_plotly_chart
 
+
+def _tweet_feed_header(title: str, updated: str):
+    """Render a guru-feed header and return the container its posts go in.
+
+    A feed not fetched for >3 days is labelled stale and its posts are tucked in
+    a collapsed expander. 2026-10-04: the nitter feeds had been dead since 1 Jul
+    while still headed "Latest ...", which put a 3-month-old "Bottom is still not
+    in" call at the top of the Signals tab.
+    """
+    age = None
+    try:
+        _u = datetime.fromisoformat(str(updated)[:19])
+        if _u.tzinfo is None:
+            _u = _u.replace(tzinfo=timezone.utc)
+        age = (datetime.now(timezone.utc) - _u).total_seconds() / 86400
+    except Exception:
+        pass
+    stale = age is not None and age > 3
+    st.markdown(
+        f"<div class='section-header' style='font-size:14px; margin-top:12px; color:#ccc;'>"
+        f"🎙️ {'Last fetched' if stale else 'Latest'} {title} "
+        f"<span style='font-size:10px; color:#888;'>(updated {str(updated)[:16]})</span></div>"
+        + (f"<div style='font-size:11px; color:#f0b90b; margin:-4px 0 6px;'>⚠️ Feed stale — last "
+           f"fetched {age:.0f} days ago. These are NOT current posts.</div>" if stale else ""),
+        unsafe_allow_html=True)
+    return (st.expander(f"Show the last posts we have (from {str(updated)[:10]})")
+            if stale else st.container())
+
+
+def _md_dollars(text) -> str:
+    """Escape "$" for PLAIN markdown (st.markdown/st.caption/st.info without an
+    HTML block): two dollar amounts in one string otherwise render as LaTeX maths
+    ("$52,345–$53,000" came out as italic run-together letters). Not for raw
+    HTML blocks, where markdown escapes are not processed."""
+    return str(text or "").replace("$", "\\$")
+
 REPO_ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(REPO_ROOT))
 
@@ -1737,28 +1773,24 @@ with tab_research:   # back to Guru Panel content
                 _cw_show = ([t for t in _cw_tweets if t.get("relevance") == "HIGH"][:5] +
                             [t for t in _cw_tweets if t.get("relevance") == "MEDIUM"][:3])
                 if _cw_show:
-                    st.markdown(
-                        f"<div class='section-header' style='font-size:14px; margin-top:12px; "
-                        f"color:#ccc;'>🎙️ Latest @benjamincowen tweets "
-                        f"<span style='font-size:10px; color:#888;'>(updated {_cw_updated[:16]})</span></div>",
-                        unsafe_allow_html=True)
-                    for _t in _cw_show[:6]:
-                        _rel = _t.get("relevance", "?")
-                        _rel_color = ("#ef4444" if _rel == "HIGH" else "#f0b90b")
-                        _txt = html.escape((_t.get("text") or _t.get("title", ""))[:280])
-                        _link = html.escape(_t.get("link", ""))
-                        _pub = html.escape((_t.get("pub", "") or "")[:16])
-                        st.markdown(
-                            f"<div style='padding:8px 12px; margin-bottom:6px; background:#13161c; "
-                            f"border-radius:6px; border-left:3px solid {_rel_color}; font-size:12px;'>"
-                            f"<div style='display:flex; justify-content:space-between; align-items:baseline;'>"
-                            f"<span style='font-size:9px; color:{_rel_color}; font-weight:700; "
-                            f"text-transform:uppercase;'>{_rel}</span>"
-                            f"<span style='font-size:9px; color:#888;'>{_pub}</span></div>"
-                            f"<div style='color:#ccc; margin-top:3px; line-height:1.4;'>{_txt}</div>"
-                            f"<a href='{_link}' target='_blank' style='font-size:10px; color:#4a90e2;'>"
-                            f"open on X →</a></div>",
-                            unsafe_allow_html=True)
+                    with _tweet_feed_header("@benjamincowen tweets", _cw_updated):
+                        for _t in _cw_show[:6]:
+                            _rel = _t.get("relevance", "?")
+                            _rel_color = ("#ef4444" if _rel == "HIGH" else "#f0b90b")
+                            _txt = html.escape((_t.get("text") or _t.get("title", ""))[:280])
+                            _link = html.escape(_t.get("link", ""))
+                            _pub = html.escape((_t.get("pub", "") or "")[:16])
+                            st.markdown(
+                                f"<div style='padding:8px 12px; margin-bottom:6px; background:#13161c; "
+                                f"border-radius:6px; border-left:3px solid {_rel_color}; font-size:12px;'>"
+                                f"<div style='display:flex; justify-content:space-between; align-items:baseline;'>"
+                                f"<span style='font-size:9px; color:{_rel_color}; font-weight:700; "
+                                f"text-transform:uppercase;'>{_rel}</span>"
+                                f"<span style='font-size:9px; color:#888;'>{_pub}</span></div>"
+                                f"<div style='color:#ccc; margin-top:3px; line-height:1.4;'>{_txt}</div>"
+                                f"<a href='{_link}' target='_blank' style='font-size:10px; color:#4a90e2;'>"
+                                f"open on X →</a></div>",
+                                unsafe_allow_html=True)
                 else:
                     st.caption("📡 Live tweets: cache present but no relevant posts yet.")
             else:
@@ -1866,13 +1898,29 @@ with tab_research:   # <- 2026-07-04 restructure
             from core.olson_ai_summary import olson_ai_summary_cached
             _ai = olson_ai_summary_cached()
             if _ai.get("summary"):
+                # The read is only as current as the tweet feed it summarises (that
+                # feed died 1 Jul 2026 while this kept saying "latest posts").
+                _src_age = None
+                try:
+                    import json as _sj
+                    _src_upd = _sj.loads((REPO_ROOT / ".jesse_olson_tweets_cache.json")
+                                         .read_text()).get("updated", "")
+                    _sdt = datetime.fromisoformat(str(_src_upd)[:19])
+                    if _sdt.tzinfo is None:
+                        _sdt = _sdt.replace(tzinfo=timezone.utc)
+                    _src_age = (datetime.now(timezone.utc) - _sdt).total_seconds() / 86400
+                except Exception:
+                    pass
                 st.markdown(
                     f"**🤖 AI read of his latest posts** "
                     f"<span style='font-size:10px; color:#888;'>"
                     f"({html.escape(str(_ai.get('model','')).split('-2025')[0] or 'Haiku')}, "
-                    f"updated {html.escape(str(_ai.get('generated',''))[:16])})</span>",
+                    f"updated {html.escape(str(_ai.get('generated',''))[:16])})</span>"
+                    + (f"<div style='font-size:11px; color:#f0b90b;'>⚠️ Based on posts last fetched "
+                       f"{_src_age:.0f} days ago — not his current view.</div>"
+                       if _src_age is not None and _src_age > 3 else ""),
                     unsafe_allow_html=True)
-                st.markdown(_ai["summary"])   # safe markdown (unsafe_allow_html=False = XSS-safe)
+                st.markdown(_md_dollars(_ai["summary"]))   # plain markdown (XSS-safe); "$" escaped
             elif not _ai.get("enabled"):
                 st.caption("🤖 AI summary: add ANTHROPIC_API_KEY to .env to enable a written read "
                            "(the levels digest below is always free).")
@@ -1943,12 +1991,21 @@ with tab_today:   # <- 2026-07-04 review fix: "what changed" belongs on Today
                         f"border-radius:14px; background:#13161c; border:1px solid {color}; "
                         f"font-size:11px; color:{color};'>{d['text']}</span>"
                     )
+                # The baseline is the previous UTC day's snapshot - often 30h+ back,
+                # so say when, or it reads as contradicting the 24h move elsewhere.
+                try:
+                    from zoneinfo import ZoneInfo as _ZI
+                    _ydt = datetime.fromisoformat(str((_cl.get("yesterday") or {}).get("ts"))
+                                                  ).astimezone(_ZI("Pacific/Auckland"))
+                    _since = f"Changes since {_ydt.strftime('%a %d %b %H:%M')} NZ"
+                except Exception:
+                    _since = "Changes since yesterday's snapshot"
                 st.markdown(
                     f"<div style='padding:10px 14px; margin-bottom:14px; border-radius:8px; "
                     f"background:#0e1117; border-left:4px solid #f0b90b;'>"
                     f"<div style='font-size:10px; color:#888; text-transform:uppercase; "
                     f"letter-spacing:1.5px; margin-bottom:6px;'>"
-                    f"Today's Changes ({n_changes})</div>"
+                    f"{_since} ({n_changes})</div>"
                     f"<div>{pills_html}</div></div>",
                     unsafe_allow_html=True,
                 )
@@ -2499,7 +2556,8 @@ with tab_signals:   # <- 2026-07-04 restructure
                     f"<div style='font-size:18px; font-weight:800; color:#f0b90b; "
                     f"line-height:1; margin-top:4px;'>{_date}</div>"
                     f"<div style='font-size:11px; color:#aaa; margin-top:6px;'>"
-                    + (f"~<b>{_days_out}</b> days away" if not isinstance(_days_out, int) or _days_out > 0
+                    + (f"~<b>{_days_out}</b> day{'' if _days_out == 1 else 's'} away"
+                       if not isinstance(_days_out, int) or _days_out > 0
                        else "date reached" if _days_out == 0 else f"<b>{abs(_days_out)}</b> days past")
                     + "</div>"
                     f"<div style='font-size:11px; color:#aaa;'>"
@@ -2666,36 +2724,29 @@ with tab_signals:   # <- 2026-07-04 restructure
                 _sw_med = [t for t in _sw_tweets if t.get("relevance") == "MEDIUM"][:3]
                 _sw_show = _sw_high + _sw_med
                 if _sw_show:
-                    st.markdown(
-                        f"<div class='section-header' style='font-size:14px; "
-                        f"margin-top:12px; color:#ccc;'>"
-                        f"🎙️ Latest @PositiveCrypto (Phillip Swift) "
-                        f"<span style='font-size:10px; color:#888;'>"
-                        f"(updated {_sw_updated[:16]})</span></div>",
-                        unsafe_allow_html=True,
-                    )
-                    for _t in _sw_show[:5]:
-                        _r = _t.get("relevance", "?")
-                        _rc = "#ef4444" if _r == "HIGH" else "#f0b90b"
-                        _tx = html.escape((_t.get("text") or _t.get("title", ""))[:280])
-                        _lk = _t.get("link", "")
-                        _pb = (_t.get("pub", "") or "")[:16]
-                        st.markdown(
-                            f"<div style='padding:8px 12px; margin-bottom:6px; "
-                            f"background:#13161c; border-radius:6px; "
-                            f"border-left:3px solid {_rc}; font-size:12px;'>"
-                            f"<div style='display:flex; justify-content:space-between; "
-                            f"align-items:baseline;'>"
-                            f"<span style='font-size:9px; color:{_rc}; "
-                            f"font-weight:700;'>{_r}</span>"
-                            f"<span style='font-size:9px; color:#888;'>{_pb}</span></div>"
-                            f"<div style='color:#ccc; margin-top:3px; line-height:1.4;'>"
-                            f"{_tx}</div>"
-                            f"<a href='{_lk}' target='_blank' "
-                            f"style='font-size:10px; color:#4a90e2;'>open on X →</a>"
-                            f"</div>",
-                            unsafe_allow_html=True,
-                        )
+                    with _tweet_feed_header("@PositiveCrypto (Phillip Swift)", _sw_updated):
+                        for _t in _sw_show[:5]:
+                            _r = _t.get("relevance", "?")
+                            _rc = "#ef4444" if _r == "HIGH" else "#f0b90b"
+                            _tx = html.escape((_t.get("text") or _t.get("title", ""))[:280])
+                            _lk = _t.get("link", "")
+                            _pb = (_t.get("pub", "") or "")[:16]
+                            st.markdown(
+                                f"<div style='padding:8px 12px; margin-bottom:6px; "
+                                f"background:#13161c; border-radius:6px; "
+                                f"border-left:3px solid {_rc}; font-size:12px;'>"
+                                f"<div style='display:flex; justify-content:space-between; "
+                                f"align-items:baseline;'>"
+                                f"<span style='font-size:9px; color:{_rc}; "
+                                f"font-weight:700;'>{_r}</span>"
+                                f"<span style='font-size:9px; color:#888;'>{_pb}</span></div>"
+                                f"<div style='color:#ccc; margin-top:3px; line-height:1.4;'>"
+                                f"{_tx}</div>"
+                                f"<a href='{_lk}' target='_blank' "
+                                f"style='font-size:10px; color:#4a90e2;'>open on X →</a>"
+                                f"</div>",
+                                unsafe_allow_html=True,
+                            )
         except Exception as _swe:
             st.caption(f"Swift tweets: {_swe}")
 
@@ -2849,11 +2900,17 @@ with tab_signals:   # <- 2026-07-04 restructure
                 f"</div>", unsafe_allow_html=True,
             )
 
-        st.caption(
-            "⚠️ **Critical**: these proxies are NOT in the 16-signal bottom scorecard."
-            "If both LTH NPC + aSOPR are firing, your TRUE bottom-signal count is "
-            "**5/16 (not 3/16)**— Path 3 trigger may be 1 signal away from FIRE."
-        )
+        # Was a permanent "Critical ... may be 1 signal away from FIRE" with
+        # hardcoded 5/16-vs-3/16 - shown even with both proxies dormant.
+        _n_px = int(bool(_lth_fire)) + int(bool(_as_fire))
+        if _n_px:
+            st.caption(
+                f"⚠️ **Critical**: {_n_px} of these proxies (LTH NPC / aSOPR) "
+                f"{'is' if _n_px == 1 else 'are'} firing but NOT counted in the 16-signal "
+                f"bottom scorecard — the true bottom-signal count is {_n_px} higher than shown.")
+        else:
+            st.caption("These proxies are not in the 16-signal bottom scorecard. Neither LTH NPC "
+                       "nor aSOPR is firing, so they add nothing to the count right now.")
 
         # === aSOPR historical chart (Hagerty ask) ===
         with st.expander("📈 aSOPR proxy — 60-day history (Hagerty chart view)", expanded=False):
@@ -3214,37 +3271,30 @@ with tab_signals:   # <- 2026-07-04 restructure
                     _med = [t for t in _olson_tweets if t.get("relevance") == "MEDIUM"][:3]
                     _show = _high + _med
                     if _show:
-                        st.markdown(
-                            f"<div class='section-header' style='font-size:14px; "
-                            f"margin-top:12px; color:#ccc;'>"
-                            f"🎙️ Latest @JesseOlson tweets "
-                            f"<span style='font-size:10px; color:#888;'>"
-                            f"(updated {_olson_updated[:16]})</span></div>",
-                            unsafe_allow_html=True,
-                        )
-                        for _t in _show[:6]:
-                            _rel = _t.get("relevance", "?")
-                            _rel_color = ("#ef4444" if _rel == "HIGH" else "#f0b90b")
-                            _txt = html.escape((_t.get("text") or _t.get("title", ""))[:280])
-                            _link = _t.get("link", "")
-                            _pub = (_t.get("pub", "") or "")[:16]
-                            st.markdown(
-                                f"<div style='padding:8px 12px; margin-bottom:6px; "
-                                f"background:#13161c; border-radius:6px; "
-                                f"border-left:3px solid {_rel_color}; font-size:12px;'>"
-                                f"<div style='display:flex; justify-content:space-between; "
-                                f"align-items:baseline;'>"
-                                f"<span style='font-size:9px; color:{_rel_color}; "
-                                f"font-weight:700; text-transform:uppercase;'>{_rel}</span>"
-                                f"<span style='font-size:9px; color:#888;'>{_pub}</span>"
-                                f"</div>"
-                                f"<div style='color:#ccc; margin-top:3px; line-height:1.4;'>"
-                                f"{_txt}</div>"
-                                f"<a href='{_link}' target='_blank' "
-                                f"style='font-size:10px; color:#4a90e2;'>open on X →</a>"
-                                f"</div>",
-                                unsafe_allow_html=True,
-                            )
+                        with _tweet_feed_header("@JesseOlson tweets", _olson_updated):
+                            for _t in _show[:6]:
+                                _rel = _t.get("relevance", "?")
+                                _rel_color = ("#ef4444" if _rel == "HIGH" else "#f0b90b")
+                                _txt = html.escape((_t.get("text") or _t.get("title", ""))[:280])
+                                _link = _t.get("link", "")
+                                _pub = (_t.get("pub", "") or "")[:16]
+                                st.markdown(
+                                    f"<div style='padding:8px 12px; margin-bottom:6px; "
+                                    f"background:#13161c; border-radius:6px; "
+                                    f"border-left:3px solid {_rel_color}; font-size:12px;'>"
+                                    f"<div style='display:flex; justify-content:space-between; "
+                                    f"align-items:baseline;'>"
+                                    f"<span style='font-size:9px; color:{_rel_color}; "
+                                    f"font-weight:700; text-transform:uppercase;'>{_rel}</span>"
+                                    f"<span style='font-size:9px; color:#888;'>{_pub}</span>"
+                                    f"</div>"
+                                    f"<div style='color:#ccc; margin-top:3px; line-height:1.4;'>"
+                                    f"{_txt}</div>"
+                                    f"<a href='{_link}' target='_blank' "
+                                    f"style='font-size:10px; color:#4a90e2;'>open on X →</a>"
+                                    f"</div>",
+                                    unsafe_allow_html=True,
+                                )
             except Exception as _ote:
                 st.caption(f"Olson tweets: {_ote}")
 
@@ -4927,6 +4977,9 @@ until BTC bottom actually fires.
         px_df = cached_ohlcv_90d()
         if not px_df.empty:
             px_df = px_df.sort_index() if not px_df.index.is_monotonic_increasing else px_df
+            # Builds on GitHub's (US) runners hit an exchange fallback that ignores
+            # days_back and returns ~400 daily bars, so "last 90 days" showed 13 months.
+            px_df = px_df.tail(90)
             _pf = go.Figure()
             _pf.add_trace(go.Candlestick(
                 x=px_df.index, open=px_df["open"], high=px_df["high"],
@@ -5026,7 +5079,8 @@ with tab_signals:   # <- 2026-07-04 restructure
                     C["bear"],
                 ), unsafe_allow_html=True)
 
-        st.info(f"💡 **Recommendation**: {exit_rec['rationale']}")
+        # "NZ$91,000 ... NZ$68,250" rendered as italic LaTeX maths before escaping.
+        st.info(f"💡 **Recommendation**: {_md_dollars(exit_rec['rationale'])}")
 
         # Criteria table
         with st.expander(f"📋 All 10 criteria — {top_sc['n_met']} firing"):
@@ -6213,13 +6267,13 @@ with tab_cycle:
                         xaxis=dict(gridcolor="#2a2d34"))
     st.plotly_chart(_tlf2, width='stretch',
                     config={"displayModeBar": False, "displaylogo": False})
-    st.caption(
+    st.caption(_md_dollars(
         "**Bottom expectation (Jesse Olson):** W-pattern double-bottom target **$52–57k**, "
         "lining up with the LTH cost-basis floor (~$53–55k). Five independent date methods "
         f"converge **{_fmt_date(_bot_lo_d, '%b %Y')} → {_fmt_date(_bot_hi_d, '%b %Y')}** "
         f"(weighted EV **{_fmt_date(_bot_ev_d, '%b %d, %Y')}**); halving + 900d lands Oct 7, 2026. "
         f"Today ${btc_price:,.0f}."
-    )
+    ))
 
     try:
         from core.dashboard_cache import get_cached as _gcd
@@ -6396,7 +6450,7 @@ with tab_cycle:
                         })
                     st.dataframe(pd.DataFrame(method_rows), width='stretch',
                                   hide_index=True, height=180)
-                st.caption(_bdc.get("summary", ""))
+                st.caption(_md_dollars(_bdc.get("summary", "")))
 
             # === INDICATOR EXTRAPOLATION ===
             _ie = _dp.get("extrapolation", {})
@@ -6420,7 +6474,7 @@ with tab_cycle:
                 if ie_rows:
                     st.dataframe(pd.DataFrame(ie_rows), width='stretch',
                                   hide_index=True)
-                st.caption(_ie.get("summary", ""))
+                st.caption(_md_dollars(_ie.get("summary", "")))
 
             # === CYCLE 4 ANALOG ===
             _c4 = _dp.get("cycle_4_analog", {})
@@ -6452,7 +6506,7 @@ with tab_cycle:
                         f"{implied_dd:.0f}% from cycle 5 peak (amplitude decay)",
                         C["bull"],
                     ), unsafe_allow_html=True)
-                st.caption(_c4.get("summary", ""))
+                st.caption(_md_dollars(_c4.get("summary", "")))
 
             # === MACRO CALENDAR ===
             _mc = _dp.get("macro_calendar", {})

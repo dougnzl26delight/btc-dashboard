@@ -80,6 +80,9 @@ def _etf_flows_history() -> Optional[pd.DataFrame]:
         return None
 
 
+_LAST_GOOD_MAX_H = 48   # a failed fetch may reuse the last good read for this long
+
+
 def classify_regime() -> dict:
     """Classify current ETF flow regime."""
     df = _etf_flows_history()
@@ -88,18 +91,28 @@ def classify_regime() -> dict:
         # the panel cache with zeros ("ETF flat" on the verdict card twice in a
         # week while the live feed was STRONG_INFLOW). Fall back to the LAST
         # GOOD cached read, clearly marked stale, instead of zeroing the card.
+        # 2026-10-04: but it carried the stale value FOREVER - every failed build
+        # (all of GitHub's runners, where Farside fails) re-wrapped the previous
+        # stale read, stacking "STALE ... — STALE ... — STALE ..." over numbers of
+        # unknown age (+$1,355M 5d shown while the live 5d was +$83M). Now: the
+        # original fetch time travels with the read, it is never re-wrapped, and
+        # it is dropped after _LAST_GOOD_MAX_H.
         try:
             import pickle as _pkl
+            import time as _time
             from pathlib import Path as _P
             _pc = _P(__file__).resolve().parent.parent / ".panel_cache" / "etf_regime.pkl"
             if _pc.exists():
                 _prev = _pkl.load(open(_pc, "rb"))
                 _prev = _prev[1] if isinstance(_prev, tuple) else _prev
-                if isinstance(_prev, dict) and _prev.get("regime") not in (None, "DATA_UNAVAILABLE"):
+                _fa = _prev.get("fetched_at") if isinstance(_prev, dict) else None
+                if (isinstance(_prev, dict) and _prev.get("regime") not in (None, "DATA_UNAVAILABLE")
+                        and _fa and _time.time() - float(_fa) <= _LAST_GOOD_MAX_H * 3600):
                     _prev = dict(_prev)
+                    _age_h = (_time.time() - float(_fa)) / 3600
                     _prev["stale"] = True
-                    _prev["status"] = ("STALE (fetch failed; showing last good read) — "
-                                       + str(_prev.get("status", "")))[:160]
+                    _prev["status"] = (f"STALE (fetch failed; last good read {_age_h:.0f}h ago) — "
+                                       + str(_prev.get("fresh_status") or _prev.get("status", "")))[:160]
                     return _prev
         except Exception:
             pass
@@ -142,6 +155,9 @@ def classify_regime() -> dict:
     # Bottom warning: capitulation flow + deep drawdown
     bottom_warning = regime == "CAPITULATION_FLOW"
 
+    import time as _time
+    _status = (f"60d ${flows_60d:+.0f}M, 30d ${flows_30d:+.0f}M, "
+               f"price {pct_from_peak:+.0f}% from peak")
     return {
         "regime":           regime,
         "flows_5d_M":       flows_5d,
@@ -153,8 +169,9 @@ def classify_regime() -> dict:
         "deep_drawdown":    deep_drawdown,
         "top_warning":      top_warning,
         "bottom_warning":   bottom_warning,
-        "status":           (f"60d ${flows_60d:+.0f}M, 30d ${flows_30d:+.0f}M, "
-                              f"price {pct_from_peak:+.0f}% from peak"),
+        "status":           _status,
+        "fresh_status":     _status,           # kept intact if this read is reused stale
+        "fetched_at":       _time.time(),      # age of a stale fallback is measured from here
     }
 
 
