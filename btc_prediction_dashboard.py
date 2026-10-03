@@ -1762,6 +1762,25 @@ with _today_hero:   # hero banner (verdict + cycle) - renders FIRST on Today
     _hero = st.columns([3, 2])
     with _hero[0]:
         rcd_str = f"{rcd['current_drawdown_pct']:+.1f}%" if rcd and not rcd.get("error") else "?"
+        # Bottom line: the price-only "low probably in" check (core/bottom_status.py)
+        # overrides the timing-model countdown once it fires - see Simpleton tab note.
+        try:
+            from core.dashboard_cache import get_cached as _gcb
+            _bsh = _gcb("bottom_status") or {}
+        except Exception:
+            _bsh = {}
+        if _bsh.get("status") == "LOW_PROBABLY_IN" and _bsh.get("low"):
+            _bot_line = (
+                f"Cycle low <b style='color:#22c55e;'>probably in</b>: "
+                f"<b style='color:#ccc;'>${_bsh['low']:,.0f}</b> ({_bsh.get('low_date_txt', _bsh.get('low_date', ''))}), "
+                f"BTC <b style='color:#ccc;'>{(btc_price / _bsh['low'] - 1) * 100:+.0f}%</b> since "
+                f"(fails below that low). Old timing model: "
+                f"{pos['projected_bottom_date'].strftime('%b %Y')} at ~$44-60k. ")
+        else:
+            _bot_line = (
+                f"Bottom (base case) ~<b style='color:#ccc;'>{days_to_bot}d</b> "
+                f"({pos['projected_bottom_date'].strftime('%b %Y')}); honest window "
+                f"<b style='color:#ccc;'>~mid-2026→Q1-2027</b>, band <b style='color:#ccc;'>~$44-60k</b>. ")
         st.markdown(
             f"<div style='padding:20px 26px; border-radius:10px; "
             f"border-left:8px solid {verdict_color}; "
@@ -1772,9 +1791,7 @@ with _today_hero:   # hero banner (verdict + cycle) - renders FIRST on Today
             f"{verdict_label}</div>"
             f"<div style='font-size:15px; color:#ccc; margin-top:8px;'>{verdict_sub}</div>"
             f"<div style='font-size:13px; color:#888; margin-top:10px;'>"
-            f"Bottom (base case) ~<b style='color:#ccc;'>{days_to_bot}d</b> "
-            f"({pos['projected_bottom_date'].strftime('%b %Y')}); honest window "
-            f"<b style='color:#ccc;'>~mid-2026→Q1-2027</b>, band <b style='color:#ccc;'>~$44-60k</b>. "
+            f"{_bot_line}"
             f"Scorecard <b style='color:#ccc;'>{sc['n_met']}/{sc['n_total']}</b>. "
             f"Realized Cap drawdown <b style='color:#ccc;'>{rcd_str}</b> "
             f"(need -15% min). "
@@ -5779,6 +5796,21 @@ with tab_simple:
     _sem_s = _sg("equity_semis")
     _p = btc_price or 0
 
+    # --- Has the cycle low probably already happened? (core/bottom_status.py) ---
+    # The countdown below only knows the timing model's projected DATE; it kept
+    # saying "bottom ~1 day away" with BTC 45% above an early, shallow June low.
+    # bottom_status is a price-only check walk-forward tested on every bear since
+    # 2011; when it says the low is probably in, the copy says so.
+    _bst = _sg("bottom_status")
+    _low_in = _bst.get("status") == "LOW_PROBABLY_IN" and bool(_bst.get("low"))
+    _low_broke = _bst.get("status") == "FAILED"
+    if _low_in:
+        _bst_ref = _p if _p > 0 else float(_bst.get("last_close") or 0)
+        _bst_up = (_bst_ref / _bst["low"] - 1) * 100 if _bst_ref else _bst.get("pct_above_low", 0)
+        _bst_fall = ([round((57_000 / _bst_ref - 1) * 100), round((52_000 / _bst_ref - 1) * 100)]
+                     if _bst_ref else (_bst.get("fall_to_band_pct") or [0, 0]))
+        _bst_lowtxt = f"${_bst['low']:,.0f} on {_bst.get('low_date_txt', _bst.get('low_date', ''))}"
+
     # --- Is Bitcoin cheap? (cycle gauges) ---
     _hl = _cd_s.get("headline", "")
     _nb = _cd_s.get("n_buy", 0)
@@ -5787,6 +5819,8 @@ with tab_simple:
     _is_exp = "DISTRIBUTION" in _hl
     if _is_cheap:
         _btc_status, _btc_sub, _btc_col = ("Cheap on long-term value",
+            (f"{_nb} of {_nt} cycle gauges say 'good value' — normal after a bottom: past cycles "
+             f"stayed 'cheap' for months while rallying off the low") if _low_in else
             f"{_nb} of {_nt} cycle gauges say 'good value' — but the bottom (the best buy) may still be lower", "#22c55e")
     elif _is_exp:
         _btc_status, _btc_sub, _btc_col = ("No — looks expensive",
@@ -5833,11 +5867,23 @@ with tab_simple:
 
     # === HERO sentence ===
     _days_txt = f" — about <b>{_days_to} days</b> away" if _days_to and _days_to > 0 else ""
+    if _low_in:
+        _bottom_txt = (
+            f"The cycle <b>bottom</b> looks like it's <b style='color:#22c55e;'>already in</b> — "
+            f"<b>{_bst_lowtxt}</b> — and Bitcoin is up <b>{_bst_up:.0f}%</b> since"
+            + (", with a higher low every month" if _bst.get("every_month_higher") else "")
+            + f". (The old timing model expected $52,000–$57,000 around {_ev_my}; getting there "
+            f"now would take a {abs(_bst_fall[0])}–{abs(_bst_fall[1])}% fall.)")
+    else:
+        _bottom_txt = (
+            ("The June 'low is in' signal has failed, so the bottom may still be ahead. "
+             if _low_broke else "")
+            + f"The big opportunity — the cycle <b>bottom</b> (the best time to buy heavily) — is "
+            f"expected around <b>$52,000–$57,000</b>, most likely <b>{_ev_my}</b>{_days_txt}.")
+    _btc_look = {"No — looks expensive": "expensive"}.get(_btc_status, _btc_status.lower())
     _hero = (
         f"Bitcoin is <b>${_p:,.0f}</b> right now and looks "
-        f"<b style='color:{_btc_col};'>{_btc_status.lower()}</b>. The big opportunity — the cycle "
-        f"<b>bottom</b> (the best time to buy heavily) — is expected around <b>$52,000–$57,000</b>, "
-        f"most likely <b>{_ev_my}</b>{_days_txt}. Meanwhile shares (US stocks) look "
+        f"<b style='color:{_btc_col};'>{_btc_look}</b>. {_bottom_txt} Meanwhile shares (US stocks) are "
         f"<b style='color:{_stk_col};'>{_stk_status.lower()}</b>. The plan is simple: shift money from "
         f"shares into Bitcoin when shares start to wobble — and right now the system says "
         f"<b style='color:{_plan_col};'>{_plan_status}</b>."
@@ -5918,9 +5964,16 @@ with tab_simple:
         st.markdown(_scard("🪙", "Is Bitcoin cheap?", _btc_status, _btc_sub, _btc_col),
                     unsafe_allow_html=True)
     with _r1[1]:
-        _b_sub = "most likely " + _ev_my + (f" (~{_days_to} days)" if _days_to and _days_to > 0 else "")
-        st.markdown(_scard("🎯", "Best time to buy (the bottom)", "$52k–$57k", _b_sub, "#f0b90b"),
-                    unsafe_allow_html=True)
+        if _low_in:
+            st.markdown(_scard(
+                "🎯", "The cycle bottom", "Probably already in",
+                f"{_bst_lowtxt} · up {_bst_up:.0f}% since. The old model's $52k–$57k "
+                f"({_ev_my}) would need a {abs(_bst_fall[0])}–{abs(_bst_fall[1])}% fall.",
+                "#22c55e"), unsafe_allow_html=True)
+        else:
+            _b_sub = "most likely " + _ev_my + (f" (~{_days_to} days)" if _days_to and _days_to > 0 else "")
+            st.markdown(_scard("🎯", "Best time to buy (the bottom)", "$52k–$57k", _b_sub, "#f0b90b"),
+                        unsafe_allow_html=True)
     st.write("")
     _r2 = st.columns(2)
     with _r2[0]:
@@ -5956,27 +6009,44 @@ with tab_simple:
                         config={"displayModeBar": False, "displaylogo": False})
         st.caption("Further right = better value (more of Bitcoin's cycle gauges say 'cheap').")
     with _v2:
-        st.markdown("**⏳ TIMING — countdown to the bottom**")
-        _prog = 0.5
-        try:
-            if _evd:
-                _tot = max(1, (_evd - CYCLE5_PEAK_DATE).days)
-                _elap = (datetime.now(timezone.utc).date() - CYCLE5_PEAK_DATE).days
-                _prog = min(1.0, max(0.0, _elap / _tot))
-        except Exception:
-            _prog = 0.5
-        if _days_to and _days_to > 0:
+        if _low_in:
+            try:
+                _bst_days = (datetime.now(timezone.utc).date()
+                             - datetime.strptime(_bst["low_date"], "%Y-%m-%d").date()).days
+            except Exception:
+                _bst_days = _bst.get("days_since_low", "?")
+            st.markdown("**⏳ TIMING — has the bottom happened?**")
             st.markdown(
-                f"<div style='font-size:42px; font-weight:800; color:#f0b90b; margin:6px 0 0;'>"
-                f"≈ {_days_to} days</div>"
-                f"<div style='color:#aaa; font-size:13px;'>until the most-likely bottom (~{_ev_my})</div>",
+                f"<div style='font-size:34px; font-weight:800; color:#22c55e; margin:6px 0 0;'>"
+                f"Probably — {_bst_days} days ago</div>"
+                f"<div style='color:#aaa; font-size:13px;'>low {_bst_lowtxt}</div>",
                 unsafe_allow_html=True)
+            st.write("")
+            st.caption(f"BTC is {_bst_up:+.0f}% above that low"
+                       + (", with a higher low every month since" if _bst.get("every_month_higher") else "")
+                       + ". " + _bst.get("why", ""))
         else:
-            st.markdown("<div style='font-size:30px; font-weight:800; color:#f0b90b;'>"
-                        "Bottom window is open</div>", unsafe_allow_html=True)
-        st.write("")
-        st.markdown(_seg_bar(round(_prog * 12), 12, "#f0b90b", height=12), unsafe_allow_html=True)
-        st.caption(f"About {round(_prog * 100)}% of the way from the last peak to the expected bottom.")
+            st.markdown("**⏳ TIMING — countdown to the bottom**")
+            _prog = 0.5
+            try:
+                if _evd:
+                    _tot = max(1, (_evd - CYCLE5_PEAK_DATE).days)
+                    _elap = (datetime.now(timezone.utc).date() - CYCLE5_PEAK_DATE).days
+                    _prog = min(1.0, max(0.0, _elap / _tot))
+            except Exception:
+                _prog = 0.5
+            if _days_to and _days_to > 0:
+                st.markdown(
+                    f"<div style='font-size:42px; font-weight:800; color:#f0b90b; margin:6px 0 0;'>"
+                    f"≈ {_days_to} days</div>"
+                    f"<div style='color:#aaa; font-size:13px;'>until the most-likely bottom (~{_ev_my})</div>",
+                    unsafe_allow_html=True)
+            else:
+                st.markdown("<div style='font-size:30px; font-weight:800; color:#f0b90b;'>"
+                            "Bottom window is open</div>", unsafe_allow_html=True)
+            st.write("")
+            st.markdown(_seg_bar(round(_prog * 12), 12, "#f0b90b", height=12), unsafe_allow_html=True)
+            st.caption(f"About {round(_prog * 100)}% of the way from the last peak to the expected bottom.")
 
     st.divider()
 

@@ -178,6 +178,13 @@ def _panels() -> dict:
         return cycle_timing_table()
     _safe("cycle_timing_table", _cycle_timing)
 
+    # PB3: Has the cycle low probably already happened? (price-only, walk-forward
+    # tested 2011->2026; drives the bottom countdown text on the Today tab)
+    def _bottom_status():
+        from core.bottom_status import bottom_status
+        return bottom_status()
+    _safe("bottom_status", _bottom_status)
+
     # F1: Free-tier proxies for paid metrics (HODL Waves, Reserve Risk, CVDD, etc.)
     def _proxies():
         from core.btc_advanced_proxies import all_proxies
