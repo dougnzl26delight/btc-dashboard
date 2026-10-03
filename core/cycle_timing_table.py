@@ -63,26 +63,53 @@ def cycle_timing_table() -> dict:
         pass
     cur_dd = round((cur / pp - 1) * 100) if cur else None
     max_dd = round((lo_p / pp - 1) * 100) if lo_p else None
-    rows.append({
-        "cycle": "**Cycle 5 (now)**", "peak": _fmtk(pp), "h2p": _d(h, pd_),
-        "p2b": f"now +{_d(pd_, today)}d", "h2b": f"now +{_d(h, today)}d",
-        "bottom": _fmtk(cur) if cur else "—",
-        "drawdown": (f"{max_dd}% low / {cur_dd}% now" if cur else "—"),
-    })
+
+    # Once the price-only check says the low is probably in (core/bottom_status.py),
+    # show THAT low's timing instead of "now +Nd" - the 'Bottom' column used to hold
+    # today's price, which read as if the cycle bottom were $84k.
+    bst = {}
+    try:
+        from core.dashboard_cache import get_cached
+        bst = get_cached("bottom_status") or {}
+    except Exception:
+        bst = {}
+    low_in = bst.get("status") == "LOW_PROBABLY_IN" and bool(bst.get("low_date"))
+    if low_in:
+        ld = bst["low_date"]
+        rows.append({
+            "cycle": "**Cycle 5 (low probably in)**", "peak": _fmtk(pp), "h2p": _d(h, pd_),
+            "p2b": _d(pd_, ld), "h2b": _d(h, ld),
+            "bottom": f"{_fmtk(bst['low'])} ({ld})",
+            "drawdown": f"{round((float(bst['low']) / pp - 1) * 100)}% (now {cur_dd}%)" if cur else
+                        f"{round((float(bst['low']) / pp - 1) * 100)}%",
+        })
+    else:
+        rows.append({
+            "cycle": "**Cycle 5 (now)**", "peak": _fmtk(pp), "h2p": _d(h, pd_),
+            "p2b": f"now +{_d(pd_, today)}d", "h2b": f"now +{_d(h, today)}d",
+            "bottom": f"{_fmtk(lo_p)} low so far" if lo_p else "—",
+            "drawdown": (f"{max_dd}% low / {cur_dd}% now" if cur else "—"),
+        })
 
     # Projection (average of the two prior cycles).
     ap2b = round((rows[0]["p2b"] + rows[1]["p2b"]) / 2)
     ah2b = round((rows[0]["h2b"] + rows[1]["h2b"]) / 2)
     proj_date = (date.fromisoformat(pd_) + timedelta(days=ap2b)).isoformat()
     rows.append({
-        "cycle": "Cycle 5 *projected*", "peak": "—", "h2p": "—",
+        "cycle": "Cycle 5 *old projection*" if low_in else "Cycle 5 *projected*",
+        "peak": "—", "h2p": "—",
         "p2b": f"~+{ap2b}d", "h2b": f"~+{ah2b}d",
         "bottom": "~$68k (analog)", "drawdown": "~-45% (analog)",
     })
 
     return {"rows": rows, "asof": today,
             "projected_bottom_date": proj_date,
-            "days_to_projected": _d(today, proj_date)}
+            "days_to_projected": _d(today, proj_date),
+            "low_probably_in": low_in,
+            "low_date": bst.get("low_date") if low_in else None,
+            "low_p2b": _d(pd_, bst["low_date"]) if low_in else None,
+            "low_h2b": _d(h, bst["low_date"]) if low_in else None,
+            "low_dd": round((float(bst["low"]) / pp - 1) * 100) if low_in else None}
 
 
 if __name__ == "__main__":

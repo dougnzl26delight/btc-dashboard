@@ -1014,15 +1014,33 @@ with st.sidebar:
     )
 
     days_to_bot = pos["days_to_pattern_bottom"]
-    st.markdown(
-        metric_card(
-            "Pattern bottom (T-)",
-            f"{days_to_bot}d" if days_to_bot > 0 else f"{abs(days_to_bot)}d ago",
-            pos["projected_bottom_date"].strftime("%b %d, %Y"),
-            C["lth"],
-        ),
-        unsafe_allow_html=True,
-    )
+    # Once the price-only check (core/bottom_status.py) says the low is probably
+    # in, a bare "T-4d" countdown on every page is the wrong headline.
+    try:
+        from core.dashboard_cache import get_cached as _gcsb
+        _sb_bst = _gcsb("bottom_status") or {}
+    except Exception:
+        _sb_bst = {}
+    if _sb_bst.get("status") == "LOW_PROBABLY_IN" and _sb_bst.get("low"):
+        st.markdown(
+            metric_card(
+                "Cycle low",
+                "Probably in",
+                f"${_sb_bst['low']:,.0f} · {_sb_bst.get('low_date_txt', _sb_bst.get('low_date', ''))}",
+                "#22c55e",
+            ),
+            unsafe_allow_html=True,
+        )
+    else:
+        st.markdown(
+            metric_card(
+                "Pattern bottom (T-)",
+                f"{days_to_bot}d" if days_to_bot > 0 else f"{abs(days_to_bot)}d ago",
+                pos["projected_bottom_date"].strftime("%b %d, %Y"),
+                C["lth"],
+            ),
+            unsafe_allow_html=True,
+        )
 
     sc_color = (C["deep_bull"] if sc["n_met"] >= 6 else
                  C["bull"] if sc["n_met"] >= 4 else
@@ -2481,7 +2499,9 @@ with tab_signals:   # <- 2026-07-04 restructure
                     f"<div style='font-size:18px; font-weight:800; color:#f0b90b; "
                     f"line-height:1; margin-top:4px;'>{_date}</div>"
                     f"<div style='font-size:11px; color:#aaa; margin-top:6px;'>"
-                    f"~<b>{_days_out}</b> days away</div>"
+                    + (f"~<b>{_days_out}</b> days away" if not isinstance(_days_out, int) or _days_out > 0
+                       else "date reached" if _days_out == 0 else f"<b>{abs(_days_out)}</b> days past")
+                    + "</div>"
                     f"<div style='font-size:11px; color:#aaa;'>"
                     f"{_n_methods} methods · ±{_spread}d spread · <b>{_conf}</b></div>"
                     f"</div>", unsafe_allow_html=True,
@@ -3435,9 +3455,11 @@ with tab_research:   # <- 2026-07-04 restructure
                             config={"displayModeBar": False, "scrollZoom": False, "doubleClick": False, "displaylogo": False})
             st.caption(
                 "**Past cycle bottoms**: each major low indexed to its first bottom (=100), by days "
-                "since. In 2018/2021/2022 price bounced, then made a *lower low* below 100 before the "
-                "bull. The gold line is the current cycle (June-2026 low = 100) — bounced, no lower low "
-                "yet. History keeps a lower low on the table until the cycle-bottom window closes."
+                "since. In 2018/2021/2022 price bounced but stayed *below* its 200-day average (0.97× "
+                "at best), then made a *lower low* below 100 before the bull. The gold line is the "
+                "current cycle (June-2026 low = 100): no lower low, and this bounce went more than 20% "
+                "above a 200-day average that has turned up — in every past cycle that only happened "
+                "after the final low (see *has the bottom happened?* on the Today tab)."
             )
     except Exception as _e:
         st.caption(f"Past-bottoms chart — unavailable ({type(_e).__name__}: {_e})")
@@ -3455,14 +3477,28 @@ with tab_research:   # <- 2026-07-04 restructure
             ]
             _ttbl = ("| Cycle | Peak | Halving→Peak | Peak→Bottom | Halving→Bottom | Bottom | Drawdown |\n"
                      "|---|---|---|---|---|---|---|\n" + "\n".join(_lines))
-            st.markdown(
-                "**Cycle bottom timing & depth** — halving→peak→bottom day counts, recomputed live. "
-                "Prior bottoms landed ~+363–376d after the peak (~+889–924d after halving); the current "
-                "peak was textbook (+534d), so the bottom window projects to **~"
-                f"{_c(_ctt.get('projected_bottom_date'))}** (~{_c(_ctt.get('days_to_projected'))}d out). "
-                "Note the **depth compression** — −84% → −77% → only −54% so far — this cycle is running "
-                "about half as deep as the last two.\n\n" + _ttbl + f"\n\n_As of {_c(_ctt.get('asof'))}._"
-            )
+            # NB: no "~" in this markdown - a pair of them renders as strikethrough.
+            if _ctt.get("low_probably_in"):
+                _tt_txt = (
+                    "**Cycle bottom timing & depth** — halving→peak→bottom day counts, recomputed live. "
+                    "Prior bottoms landed ≈+363–376d after the peak (≈+889–924d after halving); on that "
+                    f"pattern this cycle's bottom was due ≈{_c(_ctt.get('projected_bottom_date'))}. On price, "
+                    f"though, the low looks like it came **early and shallow**: {_c(_ctt.get('low_date'))}, "
+                    f"+{_c(_ctt.get('low_p2b'))}d after the peak (+{_c(_ctt.get('low_h2b'))}d after halving), "
+                    f"{_c(_ctt.get('low_dd'))}% — versus −84% and −77% the last two times "
+                    "(see *has the bottom happened?* on the Today tab).")
+            else:
+                _dtp = _ctt.get("days_to_projected")
+                _dtp_txt = (f"≈{_dtp}d out" if isinstance(_dtp, int) and _dtp > 0 else
+                            f"{abs(_dtp)}d ago" if isinstance(_dtp, int) else "?")
+                _tt_txt = (
+                    "**Cycle bottom timing & depth** — halving→peak→bottom day counts, recomputed live. "
+                    "Prior bottoms landed ≈+363–376d after the peak (≈+889–924d after halving); the current "
+                    "peak was textbook (+534d), so the bottom window projects to **≈"
+                    f"{_c(_ctt.get('projected_bottom_date'))}** ({_dtp_txt}). "
+                    "Note the **depth compression** — −84% → −77% → only −54% so far — this cycle is running "
+                    "about half as deep as the last two.")
+            st.markdown(_tt_txt + "\n\n" + _ttbl + f"\n\n_As of {_c(_ctt.get('asof'))}._")
     except Exception as _e:
         st.caption(f"Cycle-timing table — unavailable ({type(_e).__name__}: {_e})")
 
