@@ -7,6 +7,8 @@ name: Refresh dashboard data
 # ZERO dependence on the laptop. Every 6h (not hourly) since it's only a
 # fallback — fewer redundant commits. GitHub free-tier may still skip some
 # scheduled runs; that's acceptable for a backstop. Manual run available too.
+# The btcdelight-refresh Worker also dispatches it hourly; the first step skips
+# the build whenever the PC has pushed live-data in the last 45 min.
 
 on:
   schedule:
@@ -27,21 +29,51 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Fallback means fallback. The Worker dispatches this job hourly, but
+      # several free feeds fail from GitHub's runners (Farside ETF flows, FRED
+      # net liquidity, whale txs) and are silently left out - so while the PC
+      # was up, these builds overwrote main every hour with "$+0M" ETF flows and
+      # missing panels (found 2026-10-04: 31 of 34 cache commits in 30h were
+      # ours). The PC's publish_live_cache task force-pushes the live-data branch
+      # every ~3 min; if it pushed recently the PC is up and its caches win.
+      - name: Skip if the home PC is publishing
+        id: pc
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ts=$(gh api "repos/${{ github.repository }}/commits/live-data" --jq '.commit.committer.date' 2>/dev/null || true)
+          if [ -n "$ts" ]; then
+            age=$(( $(date -u +%s) - $(date -u -d "$ts" +%s) ))
+          else
+            age=999999
+          fi
+          echo "live-data last pushed: ${ts:-unknown} (${age}s ago)"
+          if [ "$age" -lt 2700 ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::Home PC published ${age}s ago - fallback not needed, skipping."
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - uses: actions/setup-python@v5
+        if: steps.pc.outputs.skip != 'true'
         with:
           python-version: '3.12'
           cache: 'pip'
 
       - name: Install dependencies
+        if: steps.pc.outputs.skip != 'true'
         run: pip install -r requirements.txt
 
       - name: Run precompute (per-panel failures are tolerated)
+        if: steps.pc.outputs.skip != 'true'
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           PYTHONUTF8: '1'
         run: python precompute_dashboard.py || true
 
       - name: Commit refreshed caches
+        if: steps.pc.outputs.skip != 'true'
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
