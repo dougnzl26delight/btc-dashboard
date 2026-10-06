@@ -1,14 +1,14 @@
 {
-  "generated_local": "2026-10-07T04:38:26.381776+13:00",
+  "generated_local": "2026-10-07T06:13:32.546853+13:00",
   "date": "2026-10-07",
   "date_friendly": "Wed 07 Oct 2026",
   "summary": "2 things changed in the last 24 hours.",
   "lines": [
-    "\u20bf Bitcoin **rose 0.5%** in the last 24 hours, to **$86,170**.",
+    "\u20bf Bitcoin was roughly flat over the last 24 hours, around **$85,507**.",
     "\ud83d\udcc9 Stocks look **calmer**: 2/10 'toppy' signs now (was 3).",
     "\ud83c\udf10 The market backdrop shifted from **LATE_CYCLE** to **RISK_ON**."
   ],
-  "btc_24h_pct": 0.4886211902998781,
+  "btc_24h_pct": -0.2850095916689503,
   "first": false,
   "plan": "GETTING READY"
 }
