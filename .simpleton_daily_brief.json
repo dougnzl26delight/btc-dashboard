@@ -1,13 +1,13 @@
 {
-  "generated_local": "2026-10-17T07:34:18.231397+13:00",
+  "generated_local": "2026-10-17T08:34:32.761879+13:00",
   "date": "2026-10-17",
   "date_friendly": "Sat 17 Oct 2026",
   "summary": "1 thing changed in the last 24 hours.",
   "lines": [
-    "\u20bf Bitcoin **fell 1.0%** in the last 24 hours, to **$81,304**.",
+    "\u20bf Bitcoin **fell 1.0%** in the last 24 hours, to **$81,335**.",
     "\ud83c\udf10 The market backdrop shifted from **LATE_CYCLE** to **RISK_ON**."
   ],
-  "btc_24h_pct": -1.011865772857988,
+  "btc_24h_pct": -0.9743667164219082,
   "first": false,
   "plan": "GETTING READY"
 }
