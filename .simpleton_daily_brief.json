@@ -1,13 +1,13 @@
 {
-  "generated_local": "2026-10-17T20:23:52.392503+13:00",
+  "generated_local": "2026-10-17T21:08:40.818371+13:00",
   "date": "2026-10-17",
   "date_friendly": "Sat 17 Oct 2026",
   "summary": "1 thing changed in the last 24 hours.",
   "lines": [
-    "\u20bf Bitcoin was roughly flat over the last 24 hours, around **$81,509**.",
+    "\u20bf Bitcoin was roughly flat over the last 24 hours, around **$81,610**.",
     "\ud83c\udf10 The market backdrop shifted from **LATE_CYCLE** to **RISK_ON**."
   ],
-  "btc_24h_pct": 0.0100612385875493,
+  "btc_24h_pct": 0.1338635524270284,
   "first": false,
   "plan": "GETTING READY"
 }
