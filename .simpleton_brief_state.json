@@ -587,11 +587,11 @@
     },
     {
       "date": "2026-10-30",
-      "price": 77844.2,
+      "price": 77559.3,
       "cheap": "cheap",
       "cycle_buy": 4,
       "cycle_total": 7,
-      "bottom_n": 3,
+      "bottom_n": 4,
       "bottom_total": 16,
       "stocks_n": 2,
       "stocks_total": 10,
