@@ -1,14 +1,14 @@
 {
-  "generated_local": "2026-11-03T10:18:54.356910+13:00",
+  "generated_local": "2026-11-03T11:07:29.564042+13:00",
   "date": "2026-11-03",
   "date_friendly": "Tue 03 Nov 2026",
   "summary": "2 things changed in the last 24 hours.",
   "lines": [
-    "\u20bf Bitcoin **fell 1.9%** in the last 24 hours, to **$76,780**.",
+    "\u20bf Bitcoin **fell 1.9%** in the last 24 hours, to **$76,722**.",
     "\ud83d\udfe2 1 bottom signal fired \u2014 the bottom checklist is now **4/16** (was 3).",
     "\ud83c\udf10 The market backdrop shifted from **RISK_ON** to **LATE_CYCLE**."
   ],
-  "btc_24h_pct": -1.8647941185492694,
+  "btc_24h_pct": -1.9386701295514268,
   "first": false,
   "plan": "GETTING READY"
 }
