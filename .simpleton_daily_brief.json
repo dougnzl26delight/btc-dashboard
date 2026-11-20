@@ -1,15 +1,14 @@
 {
-  "generated_local": "2026-11-21T07:15:30.213339+13:00",
+  "generated_local": "2026-11-21T08:27:18.560468+13:00",
   "date": "2026-11-21",
   "date_friendly": "Sat 21 Nov 2026",
-  "summary": "4 things changed in the last 24 hours.",
+  "summary": "2 things changed in the last 24 hours.",
   "lines": [
-    "\ud83d\udcca On the cycle gauges, Bitcoin shifted from **cheap** to **around fair value**.",
+    "\u20bf Bitcoin **fell 6.3%** in the last 24 hours, to **$58,012**.",
     "\ud83d\udfe2 1 bottom signal fired \u2014 the bottom checklist is now **8/16** (was 7).",
-    "\ud83d\udcc9 The stock-market tier moved from **CAUTION** to **DATA_GAP**.",
-    "\ud83e\udded **The plan changed: now WAITING** (was GETTING READY) \u2014 worth a look."
+    "\ud83d\udcc9 The stock-market tier moved from **CAUTION** to **WATCH**."
   ],
-  "btc_24h_pct": 0.0,
+  "btc_24h_pct": -6.287158697214663,
   "first": false,
-  "plan": "WAITING"
+  "plan": "GETTING READY"
 }
