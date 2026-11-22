@@ -43,8 +43,9 @@ HISTORY = [
 ]
 
 
-def _daily_closes() -> list[tuple[str, float]]:
-    """Completed UTC daily closes, oldest first, enough history to hold the ATH.
+def _daily_closes() -> tuple[list[tuple[str, float]], list[str]]:
+    """(rows, filled): completed UTC daily closes, oldest first, enough history to
+    hold the ATH, plus the dates filled from an exchange because Yahoo lacked them.
     Today's in-progress candle is dropped (the rule is on daily closes)."""
     today = datetime.now(timezone.utc).date().isoformat()
     rows: list[tuple[str, float]] = []
@@ -62,7 +63,41 @@ def _daily_closes() -> list[tuple[str, float]]:
         except Exception:
             rows = []
     rows = [r for r in rows if r[0] < today]
-    return rows
+    # Fill dates Yahoo skipped. 2026-11-22: BTC-USD had NO 2026-11-21 bar at any
+    # period, so this check silently ran on 20 Nov data - with BTC 2.6% above the
+    # low that fails it, on a day it traded to ~$55.1k intraday. A missing close
+    # can hide exactly the close-below-the-low this rule exists to catch. Only
+    # missing dates are filled; Yahoo's own closes (the walk-forward source) stay.
+    filled: list[str] = []
+    if rows:
+        have = {d for d, _ in rows}
+        fill = {d: c for d, c in _exchange_daily_closes().items()
+                if rows[0][0] < d < today and d not in have}
+        if fill:
+            rows = sorted(rows + list(fill.items()))
+            filled = sorted(fill)
+    return rows, filled
+
+
+def _exchange_daily_closes(days: int = 45) -> dict[str, float]:
+    """Recent completed-or-partial UTC daily closes (USD) from a spot exchange,
+    {date: close}. Used only to fill dates missing from Yahoo. Never raises."""
+    try:
+        import ccxt
+    except Exception:
+        return {}
+    since = int((datetime.now(timezone.utc).timestamp() - days * 86400) * 1000)
+    for ex_id in ("kraken", "coinbase", "bitstamp"):
+        try:
+            ex = getattr(ccxt, ex_id)({"enableRateLimit": True, "timeout": 15000})
+            out = {datetime.fromtimestamp(r[0] / 1000, timezone.utc).date().isoformat(): float(r[4])
+                   for r in ex.fetch_ohlcv("BTC/USD", "1d", since=since, limit=days + 5)
+                   if r and r[4]}
+            if out:
+                return out
+        except Exception:
+            continue
+    return {}
 
 
 def evaluate(rows: list[tuple[str, float]]) -> dict:
@@ -204,7 +239,11 @@ def _texts(r: dict) -> dict:
 
 def bottom_status() -> dict:
     try:
-        return evaluate(_daily_closes())
+        rows, filled = _daily_closes()
+        out = evaluate(rows)
+        if filled:
+            out["filled_from_exchange"] = filled   # visible in the cached panel
+        return out
     except Exception as e:
         return {"status": "UNAVAILABLE", "reason": f"{type(e).__name__}: {e}"}
 
