@@ -3503,13 +3503,25 @@ with tab_research:   # <- 2026-07-04 restructure
             import plotly.graph_objects as _go
             st.plotly_chart(_go.Figure(_pb), width='stretch',
                             config={"displayModeBar": False, "scrollZoom": False, "doubleClick": False, "displaylogo": False})
+            # The last sentence follows core/bottom_status, so the caption can't keep
+            # claiming "no lower low" after the June low breaks (it was static text).
+            _pb_bst = (get_cached("bottom_status") or {}).get("status")
+            if _pb_bst == "LOW_PROBABLY_IN":
+                _pb_now = ("The gold line is the current cycle (June-2026 low = 100): no daily close "
+                           "below 100 yet. In September this bounce closed more than 15% above a "
+                           "200-day average that had turned up — in every past cycle that only "
+                           "happened after the final low (see *has the bottom happened?* on the "
+                           "Today tab). A daily close below 100 would break that.")
+            elif _pb_bst == "FAILED":
+                _pb_now = ("The gold line is the current cycle (June-2026 low = 100): it has now "
+                           "closed below 100 — a lower low, like 2018/2021/2022, and the first "
+                           "failure of the 'low is in' check in the data.")
+            else:
+                _pb_now = "The gold line is the current cycle (June-2026 low = 100)."
             st.caption(
                 "**Past cycle bottoms**: each major low indexed to its first bottom (=100), by days "
                 "since. In 2018/2021/2022 price bounced but stayed *below* its 200-day average (0.97× "
-                "at best), then made a *lower low* below 100 before the bull. The gold line is the "
-                "current cycle (June-2026 low = 100): no lower low, and this bounce went more than 20% "
-                "above a 200-day average that has turned up — in every past cycle that only happened "
-                "after the final low (see *has the bottom happened?* on the Today tab)."
+                "at best), then made a *lower low* below 100 before the bull. " + _pb_now
             )
     except Exception as _e:
         st.caption(f"Past-bottoms chart — unavailable ({type(_e).__name__}: {_e})")

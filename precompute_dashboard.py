@@ -172,18 +172,20 @@ def _panels() -> dict:
         return past_bottoms_chart()
     _safe("past_bottoms", _past_bottoms)
 
+    # PB3: Has the cycle low probably already happened? (price-only, walk-forward
+    # tested 2011->2026; drives the bottom countdown text on the Today tab).
+    # Registered BEFORE PB2: cycle_timing_table reads this panel, and panels run in
+    # registration order - after PB2 it lagged a whole cycle (~75 min) behind.
+    def _bottom_status():
+        from core.bottom_status import bottom_status
+        return bottom_status()
+    _safe("bottom_status", _bottom_status)
+
     # PB2: Cross-cycle bottom timing + depth table (halving->peak->bottom, drawdown)
     def _cycle_timing():
         from core.cycle_timing_table import cycle_timing_table
         return cycle_timing_table()
     _safe("cycle_timing_table", _cycle_timing)
-
-    # PB3: Has the cycle low probably already happened? (price-only, walk-forward
-    # tested 2011->2026; drives the bottom countdown text on the Today tab)
-    def _bottom_status():
-        from core.bottom_status import bottom_status
-        return bottom_status()
-    _safe("bottom_status", _bottom_status)
 
     # F1: Free-tier proxies for paid metrics (HODL Waves, Reserve Risk, CVDD, etc.)
     def _proxies():
