@@ -1,13 +1,12 @@
 {
-  "generated_local": "2026-11-23T07:39:43.597279+13:00",
+  "generated_local": "2026-11-23T08:38:22.382894+13:00",
   "date": "2026-11-23",
   "date_friendly": "Mon 23 Nov 2026",
-  "summary": "1 thing changed in the last 24 hours.",
+  "summary": "A quiet 24 hours \u2014 the key signals held steady.",
   "lines": [
-    "\u20bf Bitcoin **rose 0.9%** in the last 24 hours, to **$60,655**.",
-    "\ud83d\udfe2 1 bottom signal fired \u2014 the bottom checklist is now **7/16** (was 6)."
+    "\u20bf Bitcoin **rose 0.9%** in the last 24 hours, to **$60,632**."
   ],
-  "btc_24h_pct": 0.9409235162647965,
+  "btc_24h_pct": 0.9028139504309376,
   "first": false,
   "plan": "GETTING READY"
 }
