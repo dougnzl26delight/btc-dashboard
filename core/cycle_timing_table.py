@@ -1,120 +1,181 @@
-"""Cross-cycle bottom TIMING + DEPTH table.
+"""Cross-cycle TIMING table: halving -> top -> bottom -> next halving, every cycle.
 
-Shows halving->peak->bottom day counts and max drawdown for each cycle, so the
-"the bottom window is still ~weeks ahead, and this cycle is half as deep"
-picture stays live. Current-cycle row + the projection update each refresh.
+Schema 2 (2026-11-22, Dave: "add the timing table to the dashboard"). Everything
+is on DAILY CLOSES (the old table mixed intraday tops with closes); it adds the
+2013-15 cycle and a 'bottom -> next halving' column, shows cycle 5 twice ('lowest
+close so far' and 'if the low is now'), and lists the bottom WINDOW each timing
+rule implies with where today sits. Rendered on the Today and Research tabs by
+btc_prediction_dashboard._render_cycle_timing.
 
-Output is PURE PYTHON ({'rows':[...], 'asof':...}) so the pickled panel is
-immune to numpy/pandas version drift on the cloud (same rule as
-cycle_peak_table). Rendered as a markdown table in btc_prediction_dashboard.py.
+Historical anchors were computed from daily closes on 2026-11-22 (Bitstamp before
+Yahoo's 2014-09-17 start, Yahoo after); cycle 5 is recomputed live each refresh.
+Output is PURE PYTHON so the pickled panel survives numpy/pandas drift on Cloud.
+No "~" anywhere in the strings: a pair of them renders as strikethrough.
 """
 from __future__ import annotations
 
+import json
+import urllib.request
 from datetime import date, datetime, timedelta, timezone
 
-from core import data
-
-# Fixed historical anchors (verified from our own price history).
-HALV = {"C3": "2016-07-09", "C4": "2020-05-11", "C5": "2024-04-20"}
-PEAK = {"C3": ("2017-12-17", 19783), "C4": ("2021-11-10", 69000),
-        "C5": ("2025-10-06", 126198)}
-BOT = {"C3": ("2018-12-15", 3212), "C4": ("2022-11-21", 15781)}  # C5 not in yet
-
-
-def _d(a: str, b: str) -> int:
-    return (date.fromisoformat(b) - date.fromisoformat(a)).days
+# (label, halving, top date, top close, bottom date, bottom close, next halving)
+HIST = [
+    ("2013–15", "2012-11-28", "2013-12-04", 1132.01, "2015-01-14", 178.10, "2016-07-09"),
+    ("2017–18", "2016-07-09", "2017-12-16", 19497.40, "2018-12-15", 3236.76, "2020-05-11"),
+    ("2021–22", "2020-05-11", "2021-11-08", 67566.83, "2022-11-21", 15787.28, "2024-04-20"),
+]
+C5_HALVING = "2024-04-20"
+NEXT_HALVING_BLOCK = 1_050_000
+FALLBACK_HALVING_GAP_D = 1440       # 2020->2024 gap; only if the block-pace estimate fails
 
 
-def _fmtk(v) -> str:
+def _d(a, b) -> int:
+    return (date.fromisoformat(str(b)[:10]) - date.fromisoformat(str(a)[:10])).days
+
+
+def _fd(d) -> str:
+    d = date.fromisoformat(str(d)[:10])
+    return f"{d.day} {d:%b %Y}"
+
+
+def _cell(d, px: float) -> str:
+    return f"{_fd(d)} · ${px:,.0f}"
+
+
+def _pct(x: float) -> str:
+    return f"{round(x):+d}%".replace("-", "−").replace("+", "")
+
+
+def _span(a: date, b: date) -> str:
+    if a.year == b.year:
+        return f"{a.day} {a:%b} – {b.day} {b:%b %Y}"
+    return f"{a.day} {a:%b %Y} – {b.day} {b:%b %Y}"
+
+
+def _status(a: date, b: date, today: date) -> str:
+    if today < a:
+        return f"starts in {(a - today).days} days"
+    if today <= b:
+        return f"open — {(b - today).days} days left"
+    return f"ended {(today - b).days} days ago"
+
+
+def _next_halving_estimate() -> tuple[date, str]:
+    """Block 1,050,000 at the pace of the last 20,160 blocks (~140 days). Never raises."""
+    def get(u):
+        req = urllib.request.Request(u, headers={"User-Agent": "btcdelight-precompute"})
+        return urllib.request.urlopen(req, timeout=15).read()
     try:
-        v = float(v)
+        tip = int(get("https://mempool.space/api/blocks/tip/height"))
+
+        def ts(h):
+            hsh = get(f"https://mempool.space/api/block-height/{h}").decode().strip()
+            return int(json.loads(get(f"https://mempool.space/api/block/{hsh}"))["timestamp"])
+        n = 20160
+        t_tip, t_old = ts(tip), ts(tip - n)
+        per = (t_tip - t_old) / n
+        eta = datetime.fromtimestamp(t_tip + (NEXT_HALVING_BLOCK - tip) * per, timezone.utc).date()
+        return eta, f"block {tip:,} at the last 20,160 blocks' pace of {per / 60:.2f} min per block"
     except Exception:
-        return "—"
-    return f"${v / 1000:.1f}k" if v >= 1000 else f"${v:,.0f}"
+        eta = date.fromisoformat(C5_HALVING) + timedelta(days=FALLBACK_HALVING_GAP_D)
+        return eta, (f"live block data unavailable, so assumed {FALLBACK_HALVING_GAP_D} days "
+                     f"after the last halving")
 
 
 def cycle_timing_table() -> dict:
-    today = datetime.now(timezone.utc).date().isoformat()
-    rows = []
-    for c in ("C3", "C4"):
-        h = HALV[c]
-        pd_, pp = PEAK[c]
-        bd, bp = BOT[c]
-        rows.append({
-            "cycle": c.replace("C", "Cycle "),
-            "peak": _fmtk(pp), "h2p": _d(h, pd_), "p2b": _d(pd_, bd),
-            "h2b": _d(h, bd), "bottom": _fmtk(bp),
-            "drawdown": f"{round((bp / pp - 1) * 100)}%",
-        })
+    today = datetime.now(timezone.utc).date()
+    rows, h2p, p2b, h2b, b2nh, dd = [], [], [], [], [], []
+    for lab, hv, td, tp, bd, bp, nh in HIST:
+        r = {"cycle": lab, "kind": "hist", "peak": _cell(td, tp), "bottom": _cell(bd, bp),
+             "h2p": _d(hv, td), "p2b": _d(td, bd), "h2b": _d(hv, bd),
+             "drawdown": _pct((bp / tp - 1) * 100), "b2nh": _d(bd, nh)}
+        rows.append(r)
+        h2p.append(r["h2p"]); p2b.append(r["p2b"]); h2b.append(r["h2b"]); b2nh.append(r["b2nh"])
+        dd.append(round((bp / tp - 1) * 100))
+    nxt, nxt_how = _next_halving_estimate()
 
-    # Current cycle (live).
-    h = HALV["C5"]
-    pd_, pp = PEAK["C5"]
-    cur = lo_p = None
+    # Cycle 5, live from daily closes (Yahoo + exchange gap-fill, today's candle dropped).
+    from core.bottom_status import _daily_closes
+    closes, _filled = _daily_closes()
+    h0 = date.fromisoformat(C5_HALVING)
+    top_end = (h0 + timedelta(days=700)).isoformat()    # every cycle topped within ~550d
+    win = [(d, c) for d, c in closes if C5_HALVING <= d <= top_end]
+    if not win:
+        raise RuntimeError("no cycle-5 daily closes")
+    td, tp = max(win, key=lambda x: x[1])
+    bd, bp = min(((d, c) for d, c in closes if d >= td), key=lambda x: x[1])
+    last_d, last_c = closes[-1]
     try:
-        df = data.ohlcv_extended("BTC/USDT", days_back=400, timeframe="1d")
-        idx = [str(x)[:10] for x in df.index]
-        cl = [float(x) for x in df["close"].tolist()]
-        cur = cl[-1]
-        since = [(idx[i], cl[i]) for i in range(len(idx)) if idx[i] >= pd_]
-        if since:
-            _, lo_p = min(since, key=lambda t: t[1])
+        from core import data
+        spot = float(data.btc_spot()) or last_c
     except Exception:
-        pass
-    cur_dd = round((cur / pp - 1) * 100) if cur else None
-    max_dd = round((lo_p / pp - 1) * 100) if lo_p else None
+        spot = last_c
+    t0, b0 = date.fromisoformat(td), date.fromisoformat(bd)
+    c5_h2p, p_low = _d(C5_HALVING, td), _d(td, bd)
+    rows.append({"cycle": "2025–26 · lowest close so far", "kind": "low",
+                 "peak": _cell(td, tp), "bottom": _cell(bd, bp),
+                 "h2p": c5_h2p, "p2b": p_low, "h2b": _d(C5_HALVING, bd),
+                 "drawdown": _pct((bp / tp - 1) * 100), "b2nh": f"≈{(nxt - b0).days} (est)"})
+    if (today - b0).days > 1:
+        rows.append({"cycle": "2025–26 · if the low is now", "kind": "now",
+                     "peak": _cell(td, tp), "bottom": f"now · ${spot:,.0f}",
+                     "h2p": c5_h2p, "p2b": (today - t0).days, "h2b": (today - h0).days,
+                     "drawdown": _pct((spot / tp - 1) * 100), "b2nh": f"≈{(nxt - today).days} (est)"})
 
-    # Once the price-only check says the low is probably in (core/bottom_status.py),
-    # show THAT low's timing instead of "now +Nd" - the 'Bottom' column used to hold
-    # today's price, which read as if the cycle bottom were $84k.
-    bst = {}
-    try:
-        from core.dashboard_cache import get_cached
-        bst = get_cached("bottom_status") or {}
-    except Exception:
-        bst = {}
-    low_in = bst.get("status") == "LOW_PROBABLY_IN" and bool(bst.get("low_date"))
-    if low_in:
-        ld = bst["low_date"]
-        rows.append({
-            "cycle": "**Cycle 5 (low probably in)**", "peak": _fmtk(pp), "h2p": _d(h, pd_),
-            "p2b": _d(pd_, ld), "h2b": _d(h, ld),
-            "bottom": f"{_fmtk(bst['low'])} ({ld})",
-            "drawdown": f"{round((float(bst['low']) / pp - 1) * 100)}% (now {cur_dd}%)" if cur else
-                        f"{round((float(bst['low']) / pp - 1) * 100)}%",
-        })
+    # Bottom windows implied by each earlier-cycle timing rule.
+    w1 = (t0 + timedelta(days=min(p2b)), t0 + timedelta(days=max(p2b)))
+    w2 = (h0 + timedelta(days=min(h2b)), h0 + timedelta(days=max(h2b)))
+    w2b = (h0 + timedelta(days=min(h2b[1:])), h0 + timedelta(days=max(h2b[1:])))
+    w3 = (nxt - timedelta(days=max(b2nh)), nxt - timedelta(days=min(b2nh)))
+    windows = [
+        {"rule": f"Top + {min(p2b)}–{max(p2b)} days", "window": _span(*w1),
+         "status": _status(*w1, today)},
+        {"rule": f"Halving + {min(h2b)}–{max(h2b)} days",
+         "window": f"{_span(*w2)} (last two cycles: {_span(*w2b)})", "status": _status(*w2, today)},
+        {"rule": f"Bottom {min(b2nh)}–{max(b2nh)} days before the next halving (≈{_fd(nxt)})",
+         "window": _span(*w3), "status": _status(*w3, today)},
+    ]
+
+    notes = []
+    lo, hi = min(h2p[1:]), max(h2p[1:])
+    if lo <= c5_h2p <= hi:
+        notes.append(f"**The top was on schedule:** {c5_h2p} days after the halving, between the "
+                     f"last two cycles ({lo} and {hi}).")
     else:
-        rows.append({
-            "cycle": "**Cycle 5 (now)**", "peak": _fmtk(pp), "h2p": _d(h, pd_),
-            "p2b": f"now +{_d(pd_, today)}d", "h2b": f"now +{_d(h, today)}d",
-            "bottom": f"{_fmtk(lo_p)} low so far" if lo_p else "—",
-            "drawdown": (f"{max_dd}% low / {cur_dd}% now" if cur else "—"),
-        })
+        notes.append(f"**The top came {c5_h2p} days after the halving** "
+                     f"(earlier cycles: {', '.join(map(str, h2p))}).")
+    if p_low < min(p2b):
+        notes.append(f"**The lowest close so far ({_fd(bd)}) came early:** {p_low} days after the "
+                     f"top, {min(p2b) - p_low}–{max(p2b) - p_low} days sooner than any earlier cycle.")
+    elif p_low <= max(p2b):
+        notes.append(f"**The lowest close so far ({_fd(bd)}) came {p_low} days after the top**, "
+                     f"inside the earlier range ({min(p2b)}–{max(p2b)}).")
+    else:
+        notes.append(f"**The lowest close so far ({_fd(bd)}) came {p_low} days after the top**, "
+                     f"later than any earlier cycle (longest: {max(p2b)}).")
+    d_top, d_h = (today - t0).days, (today - h0).days
+    msg = (f"**Today is {d_top} days after the top** (longest bear so far: {max(p2b)}) "
+           f"**and {d_h} after the halving** (latest bottom so far: {max(h2b)}).")
+    if d_top > max(p2b) and d_h > max(h2b):
+        msg += (" Both are past every earlier cycle — if the low isn't in soon, this becomes the "
+                "longest bear market on record.")
+    notes.append(msg)
+    notes.append(f"**Depth:** the lowest close is {_pct((bp / tp - 1) * 100)} from the top, versus "
+                 f"{_pct(max(dd))} to {_pct(min(dd))} in earlier cycles.")
 
-    # Projection (average of the two prior cycles).
-    ap2b = round((rows[0]["p2b"] + rows[1]["p2b"]) / 2)
-    ah2b = round((rows[0]["h2b"] + rows[1]["h2b"]) / 2)
-    proj_date = (date.fromisoformat(pd_) + timedelta(days=ap2b)).isoformat()
-    rows.append({
-        "cycle": "Cycle 5 *old projection*" if low_in else "Cycle 5 *projected*",
-        "peak": "—", "h2p": "—",
-        "p2b": f"~+{ap2b}d", "h2b": f"~+{ah2b}d",
-        "bottom": "~$68k (analog)", "drawdown": "~-45% (analog)",
-    })
-
-    return {"rows": rows, "asof": today,
-            "projected_bottom_date": proj_date,
-            "days_to_projected": _d(today, proj_date),
-            "low_probably_in": low_in,
-            "low_date": bst.get("low_date") if low_in else None,
-            "low_p2b": _d(pd_, bst["low_date"]) if low_in else None,
-            "low_h2b": _d(h, bst["low_date"]) if low_in else None,
-            "low_dd": round((float(bst["low"]) / pp - 1) * 100) if low_in else None}
+    proj = t0 + timedelta(days=round(sum(p2b[1:]) / 2))   # legacy keys for the old renderer
+    return {"schema": 2, "rows": rows, "windows": windows, "notes": notes,
+            "next_halving_est": nxt.isoformat(), "next_halving_method": nxt_how,
+            "asof": today.isoformat(), "latest_close": [last_d, round(last_c, 2)],
+            "projected_bottom_date": proj.isoformat(), "days_to_projected": (proj - today).days}
 
 
 if __name__ == "__main__":
     r = cycle_timing_table()
     for row in r["rows"]:
         print(row)
-    print("projected bottom:", r["projected_bottom_date"],
-          "| days away:", r["days_to_projected"])
+    for w in r["windows"]:
+        print(w)
+    for n in r["notes"]:
+        print("-", n)
+    print("next halving:", r["next_halving_est"], "|", r["next_halving_method"])

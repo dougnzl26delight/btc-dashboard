@@ -82,6 +82,55 @@ def _md_dollars(text) -> str:
     HTML blocks, where markdown escapes are not processed."""
     return str(text or "").replace("$", "\\$")
 
+
+def _render_cycle_timing(ctt) -> None:
+    """The cycle timing panel (core/cycle_timing_table.py, schema 2): every cycle's
+    halving -> top -> bottom -> next halving, plus the bottom window each rule
+    implies. Shared by the Today and Research tabs so the two can't drift apart."""
+    if not isinstance(ctt, dict) or ctt.get("schema") != 2 or not ctt.get("rows"):
+        st.caption("Cycle timing table — updating; it appears after the next data refresh.")
+        return
+
+    def _c(x):
+        return "—" if x in (None, "") else str(x)
+
+    _rows = ["| Cycle | Top (close) | Lowest close | Halving → top | Top → bottom | "
+             "Halving → bottom | Drop | Bottom → next halving |",
+             "|---|---|---|---|---|---|---|---|"]
+    for _r in ctt["rows"]:
+        _cy = _c(_r.get("cycle"))
+        _rows.append(f"| {'**' + _cy + '**' if _r.get('kind') != 'hist' else _cy} | "
+                     f"{_c(_r.get('peak'))} | {_c(_r.get('bottom'))} | {_c(_r.get('h2p'))} | "
+                     f"{_c(_r.get('p2b'))} | {_c(_r.get('h2b'))} | {_c(_r.get('drawdown'))} | "
+                     f"{_c(_r.get('b2nh'))} |")
+    st.markdown("Days between each stage, on daily closes.\n\n" + _md_dollars("\n".join(_rows)))
+
+    _win = ["| When earlier cycles say the bottom comes | Window | Today |", "|---|---|---|"]
+    for _w in ctt.get("windows") or []:
+        _win.append(f"| {_c(_w.get('rule'))} | {_c(_w.get('window'))} | {_c(_w.get('status'))} |")
+    try:   # the date model lives in another panel, so it is read at render time
+        from core.dashboard_cache import get_cached as _gcw
+        _ev = str((((_gcw("date_predictions") or {}).get("convergence") or {})
+                   .get("ev_date") or ""))[:10]
+        if _ev:
+            _evd = datetime.strptime(_ev, "%Y-%m-%d").date()
+            _dd = (datetime.now(timezone.utc).date() - _evd).days
+            _win.append(f"| This dashboard's date model (weighted estimate) | "
+                        f"{_evd.day} {_evd:%b %Y} | "
+                        + (f"passed {_dd} days ago" if _dd > 0 else
+                           "today" if _dd == 0 else f"in {-_dd} days") + " |")
+    except Exception:
+        pass
+    st.markdown("\n".join(_win))
+    if ctt.get("notes"):
+        st.markdown(_md_dollars("\n".join(f"- {_n}" for _n in ctt["notes"])))
+    st.caption(_md_dollars(
+        "Tops and bottoms are daily closes (Bitstamp before Sep 2014, Yahoo after, missing "
+        f"days filled from exchanges). Next halving ≈ {ctt.get('next_halving_est')} "
+        f"({ctt.get('next_halving_method')}). Three earlier cycles is a small sample — "
+        f"a pattern, not a law. As of {ctt.get('asof')}."))
+
+
 REPO_ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(REPO_ROOT))
 
@@ -3527,40 +3576,8 @@ with tab_research:   # <- 2026-07-04 restructure
         st.caption(f"Past-bottoms chart — unavailable ({type(_e).__name__}: {_e})")
 
     try:
-        _ctt = get_cached("cycle_timing_table")
-        if _ctt and _ctt.get("rows"):
-            def _c(x):
-                return "—" if x is None else str(x)
-            _lines = [
-                f"| {_c(_r.get('cycle'))} | {_c(_r.get('peak'))} | {_c(_r.get('h2p'))} | "
-                f"{_c(_r.get('p2b'))} | {_c(_r.get('h2b'))} | {_c(_r.get('bottom'))} | "
-                f"{_c(_r.get('drawdown'))} |"
-                for _r in _ctt["rows"]
-            ]
-            _ttbl = ("| Cycle | Peak | Halving→Peak | Peak→Bottom | Halving→Bottom | Bottom | Drawdown |\n"
-                     "|---|---|---|---|---|---|---|\n" + "\n".join(_lines))
-            # NB: no "~" in this markdown - a pair of them renders as strikethrough.
-            if _ctt.get("low_probably_in"):
-                _tt_txt = (
-                    "**Cycle bottom timing & depth** — halving→peak→bottom day counts, recomputed live. "
-                    "Prior bottoms landed ≈+363–376d after the peak (≈+889–924d after halving); on that "
-                    f"pattern this cycle's bottom was due ≈{_c(_ctt.get('projected_bottom_date'))}. On price, "
-                    f"though, the low looks like it came **early and shallow**: {_c(_ctt.get('low_date'))}, "
-                    f"+{_c(_ctt.get('low_p2b'))}d after the peak (+{_c(_ctt.get('low_h2b'))}d after halving), "
-                    f"{_c(_ctt.get('low_dd'))}% — versus −84% and −77% the last two times "
-                    "(see *has the bottom happened?* on the Today tab).")
-            else:
-                _dtp = _ctt.get("days_to_projected")
-                _dtp_txt = (f"≈{_dtp}d out" if isinstance(_dtp, int) and _dtp > 0 else
-                            f"{abs(_dtp)}d ago" if isinstance(_dtp, int) else "?")
-                _tt_txt = (
-                    "**Cycle bottom timing & depth** — halving→peak→bottom day counts, recomputed live. "
-                    "Prior bottoms landed ≈+363–376d after the peak (≈+889–924d after halving); the current "
-                    "peak was textbook (+534d), so the bottom window projects to **≈"
-                    f"{_c(_ctt.get('projected_bottom_date'))}** ({_dtp_txt}). "
-                    "Note the **depth compression** — −84% → −77% → only −54% so far — this cycle is running "
-                    "about half as deep as the last two.")
-            st.markdown(_tt_txt + "\n\n" + _ttbl + f"\n\n_As of {_c(_ctt.get('asof'))}._")
+        st.markdown("**📅 Cycle timing — days from top to bottom, every cycle**")
+        _render_cycle_timing(get_cached("cycle_timing_table"))
     except Exception as _e:
         st.caption(f"Cycle-timing table — unavailable ({type(_e).__name__}: {_e})")
 
@@ -6156,6 +6173,14 @@ with tab_simple:
             st.write("")
             st.markdown(_seg_bar(round(_prog * 12), 12, "#f0b90b", height=12), unsafe_allow_html=True)
             st.caption(f"About {round(_prog * 100)}% of the way from the last peak to the expected bottom.")
+
+    # === Cycle timing table (Dave 2026-11-22: "add the timing table to the
+    # dashboard") — same panel as the Research tab, via _render_cycle_timing. ===
+    try:
+        with st.expander("📅 Cycle timing — days from top to bottom, every cycle", expanded=True):
+            _render_cycle_timing(_sg("cycle_timing_table"))
+    except Exception as _cte:
+        st.caption(f"Cycle timing table — unavailable ({type(_cte).__name__})")
 
     st.divider()
 
