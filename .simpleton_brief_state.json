@@ -1,21 +1,6 @@
 {
   "snaps": [
     {
-      "date": "2026-10-15",
-      "price": 80814.4,
-      "cheap": "cheap",
-      "cycle_buy": 4,
-      "cycle_total": 7,
-      "bottom_n": 3,
-      "bottom_total": 16,
-      "stocks_n": 2,
-      "stocks_total": 10,
-      "qqq_tier": "CAUTION",
-      "semis_tier": "BREAKDOWN",
-      "plan": "GETTING READY",
-      "regime": "RISK_ON"
-    },
-    {
       "date": "2026-10-16",
       "price": 82063.9,
       "cheap": "cheap",
@@ -588,6 +573,21 @@
     {
       "date": "2026-11-23",
       "price": 61366.1,
+      "cheap": "cheap",
+      "cycle_buy": 5,
+      "cycle_total": 7,
+      "bottom_n": 7,
+      "bottom_total": 16,
+      "stocks_n": 2,
+      "stocks_total": 10,
+      "qqq_tier": "WATCH",
+      "semis_tier": "BREAKDOWN",
+      "plan": "GETTING READY",
+      "regime": "RISK_ON"
+    },
+    {
+      "date": "2026-11-24",
+      "price": 61360.4,
       "cheap": "cheap",
       "cycle_buy": 5,
       "cycle_total": 7,
