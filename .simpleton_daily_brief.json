@@ -1,13 +1,12 @@
 {
-  "generated_local": "2026-11-24T23:49:02.514785+13:00",
-  "date": "2026-11-24",
-  "date_friendly": "Tue 24 Nov 2026",
-  "summary": "1 thing changed in the last 24 hours.",
+  "generated_local": "2026-11-25T01:43:54.202189+13:00",
+  "date": "2026-11-25",
+  "date_friendly": "Wed 25 Nov 2026",
+  "summary": "A quiet 24 hours \u2014 the key signals held steady.",
   "lines": [
-    "\u20bf Bitcoin **fell 2.7%** in the last 24 hours, to **$59,532**.",
-    "\ud83d\udcc9 The stock-market tier moved from **WATCH** to **CAUTION**."
+    "\u20bf Bitcoin **fell 1.4%** in the last 24 hours, to **$60,367**."
   ],
-  "btc_24h_pct": -2.724377566410073,
+  "btc_24h_pct": -1.3715843155068768,
   "first": false,
   "plan": "GETTING READY"
 }
